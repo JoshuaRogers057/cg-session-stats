@@ -1,0 +1,234 @@
+import { MODULE_ID, ROLL_CATEGORY, ROLL_TAG, HOOK } from "./constants.mjs";
+import { buildRollTable, buildInitiativeTable, buildCombatTable, sortTable } from "./aggregator.mjs";
+import { openEditRosterDialog } from "./roster-dialog.mjs";
+import { exportSessionCSV } from "./csv-export.mjs";
+
+const ROLL_COLUMNS = [
+  { key: "name", label: "Character" },
+  { key: "rolls", label: "Rolls" },
+  { key: "meanKept", label: "Mean (kept)" },
+  { key: "meanAll", label: "Mean (all)" },
+  { key: "nat20", label: "Nat 20s" },
+  { key: "nat1", label: "Nat 1s" },
+  { key: "passes", label: "Passes" },
+  { key: "fails", label: "Fails" },
+  { key: "passRate", label: "Pass Rate" }
+];
+
+const INITIATIVE_COLUMNS = [
+  { key: "name", label: "Character" },
+  { key: "rolls", label: "Rolls" },
+  { key: "mean", label: "Mean" },
+  { key: "nat20", label: "Nat 20s" },
+  { key: "nat1", label: "Nat 1s" }
+];
+
+const COMBAT_COLUMNS = [
+  { key: "name", label: "Character" },
+  { key: "dmgDealt", label: "Dmg Dealt" },
+  { key: "dmgTaken", label: "Dmg Taken" },
+  { key: "healGiven", label: "Heal Given" },
+  { key: "healRecv", label: "Heal Received" },
+  { key: "thpGiven", label: "Temp HP Given" },
+  { key: "downed", label: "Downed" }
+];
+
+const TAB_DEFS = [
+  { id: "attacks", label: "Attacks", kind: "roll", category: ROLL_CATEGORY.ATTACK, columns: ROLL_COLUMNS, defaultSort: "meanKept" },
+  { id: "saves", label: "Saves", kind: "roll", category: ROLL_CATEGORY.SAVE, columns: ROLL_COLUMNS, defaultSort: "meanKept", hasSpecialSavesToggle: true },
+  { id: "checks", label: "Checks", kind: "roll", category: ROLL_CATEGORY.CHECK, columns: ROLL_COLUMNS, defaultSort: "meanKept" },
+  { id: "initiative", label: "Initiative", kind: "initiative", columns: INITIATIVE_COLUMNS, defaultSort: "mean" },
+  { id: "combat", label: "Combat", kind: "combat", columns: COMBAT_COLUMNS, defaultSort: "dmgDealt" }
+];
+
+function formatDuration(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
+
+function formatCell(key, value) {
+  if (value === null || value === undefined) return "";
+  if (key === "meanKept" || key === "meanAll" || key === "mean") return value.toFixed(1);
+  if (key === "passRate") return value.toFixed(2);
+  return String(value);
+}
+
+const { ApplicationV2 } = foundry.applications.api;
+const { HandlebarsApplicationMixin } = foundry.applications.api;
+
+export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
+  static DEFAULT_OPTIONS = {
+    id: "cgss-report",
+    classes: ["cgss-report"],
+    tag: "div",
+    window: { title: "Champions Guild Session Stats", icon: "fa-solid fa-chart-column", resizable: true },
+    position: { width: 820, height: 640 }
+  };
+
+  static PARTS = {
+    top: { template: `modules/${MODULE_ID}/templates/report-top.hbs` },
+    main: { template: `modules/${MODULE_ID}/templates/report-main.hbs` }
+  };
+
+  #store;
+  #attribution;
+  #activeTab = "attacks";
+  #showNPCs = false;
+  #excludeSpecialSaves = false;
+  #tables = {};
+  #hasComputed = false;
+  #sortState = {};
+  #queueHookId = null;
+  #tickInterval = null;
+
+  constructor(store, attribution, options = {}) {
+    super(options);
+    this.#store = store;
+    this.#attribution = attribution;
+  }
+
+  async _prepareContext(options) {
+    if (!this.#hasComputed) this.#recompute();
+    const data = this.#store.data;
+    const tab = TAB_DEFS.find((t) => t.id === this.#activeTab) ?? TAB_DEFS[0];
+    const rawRows = this.#tables[tab.id] ?? [];
+
+    const rows = rawRows.map((r) => ({
+      isPC: r.isPC,
+      dangerNat1: (r.nat1 ?? 0) >= 3,
+      cells: Object.fromEntries(tab.columns.map((c) => [c.key, formatCell(c.key, r[c.key])]))
+    }));
+
+    return {
+      hasSession: !!data,
+      session: data
+        ? {
+            name: data.meta.name,
+            elapsedLabel: formatDuration(this.#store.elapsedSeconds),
+            combats: this.#store.combatCount,
+            events: this.#store.eventCount,
+            recording: this.#store.isRecording
+          }
+        : null,
+      canExport: !!data && !this.#store.isRecording,
+      queue: this.#queueContext(),
+      activeTab: tab.id,
+      tabs: TAB_DEFS.map((t) => ({ id: t.id, label: t.label, active: t.id === tab.id })),
+      showNPCs: this.#showNPCs,
+      excludeSpecialSaves: this.#excludeSpecialSaves,
+      showSpecialSavesToggle: !!tab.hasSpecialSavesToggle,
+      columns: tab.columns,
+      rows
+    };
+  }
+
+  #recompute() {
+    const data = this.#store.data;
+    this.#tables = {};
+    this.#hasComputed = true;
+    if (!data) return;
+
+    for (const tab of TAB_DEFS) {
+      let rows;
+      if (tab.kind === "roll") {
+        const excludeTags = tab.hasSpecialSavesToggle && this.#excludeSpecialSaves ? [ROLL_TAG.DEATH_SAVE, ROLL_TAG.CONCENTRATION] : [];
+        rows = buildRollTable(data, tab.category, { showNPCs: this.#showNPCs, excludeTags });
+      } else if (tab.kind === "initiative") {
+        rows = buildInitiativeTable(data, { showNPCs: this.#showNPCs });
+      } else {
+        rows = buildCombatTable(data, { showNPCs: this.#showNPCs });
+      }
+
+      const sort = this.#sortState[tab.id];
+      this.#tables[tab.id] = sort ? sortTable(rows, sort.key, sort.dir) : rows;
+    }
+  }
+
+  #queueContext() {
+    const data = this.#store.data;
+    if (!data) return [];
+    const candidates = this.#attribution.candidateSources;
+    return this.#attribution.entries.map((e) => ({
+      index: e.index,
+      timeLabel: formatDuration(e.t),
+      targetName: data.actors[e.targetUuid]?.n ?? "?",
+      amount: e.amount,
+      candidates
+    }));
+  }
+
+  #applySort(key) {
+    const current = this.#sortState[this.#activeTab];
+    const dir = current?.key === key && current.dir === "desc" ? "asc" : "desc";
+    this.#sortState[this.#activeTab] = { key, dir };
+    this.#tables[this.#activeTab] = sortTable(this.#tables[this.#activeTab] ?? [], key, dir);
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    const parts = options.parts ?? ["top", "main"];
+    if (parts.includes("top")) this.#bindTop();
+    if (parts.includes("main")) this.#bindMain();
+  }
+
+  #bindTop() {
+    const root = this.element;
+    root.querySelector('[data-action="editRoster"]')?.addEventListener("click", () => openEditRosterDialog(this.#store));
+    root.querySelector('[data-action="endSession"]')?.addEventListener("click", () => this.#store.endSession());
+    root.querySelector('[data-action="exportCsv"]')?.addEventListener("click", () => exportSessionCSV(this.#store, this.#attribution));
+    root.querySelectorAll("select[data-attribution-index]").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        const index = Number(sel.dataset.attributionIndex);
+        if (sel.value) this.#attribution.resolve(index, sel.value);
+      });
+    });
+  }
+
+  #bindMain() {
+    const root = this.element;
+    root.querySelectorAll('[data-action="changeTab"]').forEach((el) => {
+      el.addEventListener("click", () => {
+        this.#activeTab = el.dataset.tab;
+        this.render({ parts: ["main"] });
+      });
+    });
+    root.querySelectorAll('[data-action="sortColumn"]').forEach((el) => {
+      el.addEventListener("click", () => {
+        this.#applySort(el.dataset.key);
+        this.render({ parts: ["main"] });
+      });
+    });
+    root.querySelector('[data-action="toggleNPCs"]')?.addEventListener("change", (ev) => {
+      this.#showNPCs = ev.target.checked;
+      this.#recompute();
+      this.render({ parts: ["main"] });
+    });
+    root.querySelector('[data-action="toggleSpecialSaves"]')?.addEventListener("change", (ev) => {
+      this.#excludeSpecialSaves = ev.target.checked;
+      this.#recompute();
+      this.render({ parts: ["main"] });
+    });
+    root.querySelector('[data-action="refresh"]')?.addEventListener("click", () => {
+      this.#recompute();
+      this.render({ parts: ["main"] });
+    });
+  }
+
+  async _onFirstRender(context, options) {
+    await super._onFirstRender(context, options);
+    this.#queueHookId = Hooks.on(HOOK.QUEUE_CHANGED, () => this.rendered && this.render({ parts: ["top"] }));
+    this.#tickInterval = setInterval(() => {
+      if (this.rendered && this.#store.isRecording) this.render({ parts: ["top"] });
+    }, 15000);
+  }
+
+  async _onClose(options) {
+    await super._onClose(options);
+    if (this.#queueHookId !== null) Hooks.off(HOOK.QUEUE_CHANGED, this.#queueHookId);
+    if (this.#tickInterval) clearInterval(this.#tickInterval);
+  }
+}

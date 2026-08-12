@@ -1,0 +1,122 @@
+/* Minimal utilitarian styling - revisit once the report window mockup is provided. */
+
+.cgss-controls {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.cgss-controls button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+}
+
+.cgss-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2em;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--color-level-error, #a92222);
+  color: #fff;
+  font-size: 0.75em;
+  line-height: 1.4;
+}
+
+.cgss-report .cgss-header-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.9em;
+  opacity: 0.85;
+  margin: 4px 0;
+}
+
+.cgss-report .cgss-recording {
+  color: var(--color-level-error, #a92222);
+}
+
+.cgss-report .cgss-header-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.cgss-report .cgss-queue {
+  border: 1px solid var(--color-border-light-2, #782e22);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.cgss-report .cgss-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border-light-2, #782e22);
+  margin-bottom: 6px;
+}
+
+.cgss-report .cgss-tabs a {
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.cgss-report .cgss-tabs a.active {
+  font-weight: bold;
+  border-bottom: 2px solid var(--color-border-highlight, #ff6400);
+}
+
+.cgss-report .cgss-npc-toggle,
+.cgss-report .cgss-special-saves-toggle {
+  margin-left: auto;
+  font-size: 0.85em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cgss-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cgss-table th {
+  cursor: pointer;
+  text-align: left;
+  padding: 4px 6px;
+  user-select: none;
+}
+
+.cgss-table td {
+  padding: 3px 6px;
+}
+
+.cgss-table .cgss-npc-row {
+  opacity: 0.75;
+  font-style: italic;
+}
+
+.cgss-table td[data-danger="true"] {
+  color: var(--color-level-error, #a92222);
+  font-weight: bold;
+}
+
+.cgss-roster-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.cgss-roster-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

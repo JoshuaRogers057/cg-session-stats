@@ -1,0 +1,57 @@
+{
+  "id": "cg-session-stats",
+  "title": "Champions Guild Session Stats",
+  "description": "Tracks per-character combat and d20 statistics across a session and exports them as CSV. Requires dnd5e and Midi-QOL.",
+  "version": "0.1.0",
+  "authors": [
+    {
+      "name": "Josh"
+    }
+  ],
+  "esmodules": [
+    "scripts/main.mjs"
+  ],
+  "styles": [
+    "styles/cg-session-stats.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "5.3",
+          "maximum": "5.3.99"
+        }
+      }
+    ],
+    "requires": [
+      {
+        "id": "socketlib",
+        "type": "module",
+        "compatibility": {}
+      },
+      {
+        "id": "midi-qol",
+        "type": "module",
+        "compatibility": {
+          "minimum": "13.0.0"
+        }
+      }
+    ]
+  },
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13.351"
+  },
+  "url": "",
+  "manifest": "",
+  "download": ""
+}

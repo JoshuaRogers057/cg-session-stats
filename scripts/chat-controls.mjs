@@ -1,0 +1,86 @@
+import { HOOK } from "./constants.mjs";
+import { openStartSessionDialog } from "./roster-dialog.mjs";
+import { exportSessionCSV } from "./csv-export.mjs";
+import { ReportApp } from "./report-app.mjs";
+
+let reportApp = null;
+
+export function registerChatControls(store, attribution) {
+  Hooks.on("renderChatLog", (app, html) => injectControls(html, store, attribution));
+  Hooks.on(HOOK.STATE_CHANGED, () => refreshControls(store, attribution));
+  Hooks.on(HOOK.QUEUE_CHANGED, () => refreshControls(store, attribution));
+}
+
+function injectControls(html, store, attribution) {
+  if (html.querySelector(".cgss-controls")) return refreshControls(store, attribution);
+
+  const form = html.querySelector("#chat-form") ?? html;
+  const bar = document.createElement("div");
+  bar.className = "cgss-controls";
+  bar.innerHTML = `
+    <button type="button" data-action="cgss-start"><i class="fa-solid fa-circle-play"></i> Start Session</button>
+    <button type="button" data-action="cgss-end"><i class="fa-solid fa-circle-stop"></i> End Session</button>
+    <button type="button" data-action="cgss-report">
+      <i class="fa-solid fa-chart-column"></i> Open Report
+      <span class="cgss-badge" hidden></span>
+    </button>
+  `;
+  form.insertAdjacentElement("afterend", bar);
+
+  bar.querySelector('[data-action="cgss-start"]').addEventListener("click", () => onStart(store, attribution));
+  bar.querySelector('[data-action="cgss-end"]').addEventListener("click", () => store.endSession());
+  bar.querySelector('[data-action="cgss-report"]').addEventListener("click", () => openReport(store, attribution));
+
+  refreshControls(store, attribution);
+}
+
+function refreshControls(store, attribution) {
+  const bar = document.querySelector(".cgss-controls");
+  if (!bar) return;
+
+  const recording = store.isRecording;
+  const hasData = !!store.data;
+
+  bar.querySelector('[data-action="cgss-start"]').hidden = recording;
+  bar.querySelector('[data-action="cgss-end"]').hidden = !recording;
+  bar.querySelector('[data-action="cgss-report"]').hidden = !hasData;
+
+  const badge = bar.querySelector(".cgss-badge");
+  const count = attribution.count;
+  badge.hidden = count === 0;
+  badge.textContent = String(count);
+}
+
+async function onStart(store, attribution) {
+  if (store.hasUnexportedData) {
+    const choice = await confirmUnexportedData();
+    if (!choice || choice === "cancel") return;
+    if (choice === "export") await exportSessionCSV(store, attribution);
+    else if (choice === "discard") store.discardSession();
+  }
+  await openStartSessionDialog(store);
+}
+
+/** Guards Start Session against clobbering a prior session's unexported data. */
+function confirmUnexportedData() {
+  return new Promise((resolve) => {
+    const app = new foundry.applications.api.DialogV2({
+      window: { title: game.i18n.localize("CGSS.Guard.Title"), icon: "fa-solid fa-triangle-exclamation" },
+      content: `<p>${game.i18n.localize("CGSS.Guard.Body")}</p>`,
+      buttons: [
+        { action: "export", icon: "fa-solid fa-file-csv", label: game.i18n.localize("CGSS.Guard.Export"), default: true },
+        { action: "discard", icon: "fa-solid fa-trash", label: game.i18n.localize("CGSS.Guard.Discard") },
+        { action: "cancel", icon: "fa-solid fa-xmark", label: game.i18n.localize("CGSS.Guard.Cancel") }
+      ],
+      submit: (result) => resolve(result)
+    });
+    app.addEventListener("close", () => resolve(null), { once: true });
+    app.render({ force: true });
+  });
+}
+
+function openReport(store, attribution) {
+  if (!reportApp) reportApp = new ReportApp(store, attribution);
+  if (reportApp.rendered) reportApp.bringToFront();
+  else reportApp.render({ force: true });
+}

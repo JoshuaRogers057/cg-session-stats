@@ -1,0 +1,19 @@
+{
+  "CGSS.Settings.AllowPlayerReport.Name": "Allow Players to View Report",
+  "CGSS.Settings.AllowPlayerReport.Hint": "If enabled, players can open the read-only session report. Resolving the attribution queue and exporting remain GM-only.",
+  "CGSS.Settings.Debug.Name": "Debug Logging",
+  "CGSS.Settings.Debug.Hint": "Log dropped/unrecorded events to the console for troubleshooting.",
+
+  "CGSS.Roster.StartTitle": "Start Session",
+  "CGSS.Roster.StartPrompt": "Select who's playing tonight. Unchecked characters will not be tracked.",
+  "CGSS.Roster.SessionName": "Session Name",
+  "CGSS.Roster.None": "No player-owned characters found.",
+  "CGSS.Roster.EditTitle": "Edit Roster",
+  "CGSS.Roster.Confirm": "Confirm",
+
+  "CGSS.Guard.Title": "Unexported Session Data",
+  "CGSS.Guard.Body": "The previous session's data hasn't been exported yet. Starting a new session will discard it unless you export first.",
+  "CGSS.Guard.Export": "Export Now",
+  "CGSS.Guard.Discard": "Discard Anyway",
+  "CGSS.Guard.Cancel": "Cancel"
+}
