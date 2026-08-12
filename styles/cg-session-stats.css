@@ -4,6 +4,12 @@
   display: flex;
   gap: 4px;
   padding: 4px 0;
+  /* Core sets `#sidebar-content.active-chat { pointer-events: none }` and requires each
+     interactive child to opt back in explicitly (it does exactly this for .chat-input).
+     Without this the buttons render but every click passes straight through them - no
+     hover state, no :active feedback, no event. pointer-events inherits, so the buttons
+     inside are covered too. */
+  pointer-events: all;
 }
 
 .cgss-controls button {

@@ -21,8 +21,10 @@ export function registerChatControls(store, attribution) {
 function injectControls(html, store, attribution) {
   if (html.querySelector(".cgss-controls")) return refreshControls(store, attribution);
 
-  const form = html.querySelector("#chat-form");
-  if (!form) debugLog("chat-controls: #chat-form not found, appending to chat log root instead", html);
+  // V13's chat input is the ChatLog "input" part: <form class="chat-form">. There is no
+  // #chat-form id (that was the pre-V13 markup).
+  const form = html.querySelector("form.chat-form");
+  if (!form) debugLog("chat-controls: form.chat-form not found, appending to chat log root instead", html);
   const bar = document.createElement("div");
   bar.className = "cgss-controls";
   bar.innerHTML = `
