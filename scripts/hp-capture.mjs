@@ -115,10 +115,12 @@ export class HPCapture {
       const hpDamage = entry.hpDamage ?? 0;
       const tempDelta = entry.tempDamage ?? 0; // >0 = temp consumed (absorbed damage), <0 = temp granted
 
-      let dmg = 0, heal = 0, thp = 0;
-      if (hpDamage > 0) dmg = hpDamage + Math.max(tempDelta, 0);
-      else if (hpDamage < 0) heal = -hpDamage;
-      if (tempDelta < 0) thp = -tempDelta;
+      // Damage absorbed by temp HP still counts as damage, per the brief - including when
+      // temp soaks the hit entirely and hpDamage is 0. Keying damage off hpDamage alone
+      // dropped those events outright, since all three amounts came out zero.
+      let dmg = Math.max(hpDamage, 0) + Math.max(tempDelta, 0);
+      let heal = hpDamage < 0 ? -hpDamage : 0;
+      let thp = tempDelta < 0 ? -tempDelta : 0;
       if (dmg === 0 && heal === 0 && thp === 0) continue;
 
       const targetDisposition = this.#dispositionForEntry(entry, rawTargetActor);
@@ -200,10 +202,13 @@ export class HPCapture {
     const deltaHP = current.hp - prev.hp;
     const deltaTemp = current.temp - prev.temp;
 
+    // Losing temp HP is damage absorbed, so it counts as damage taken the same way it does
+    // on the Midi path - otherwise a hit soaked entirely by temp vanishes from the stats.
     let dmg = 0, heal = 0, thp = 0;
     if (deltaHP < 0) dmg = -deltaHP;
     else if (deltaHP > 0) heal = deltaHP;
     if (deltaTemp > 0) thp = deltaTemp;
+    else if (deltaTemp < 0) dmg += -deltaTemp;
     if (dmg === 0 && heal === 0 && thp === 0) return;
 
     // Last-resort dedup for the cross-client case: when a *player* runs the workflow,
