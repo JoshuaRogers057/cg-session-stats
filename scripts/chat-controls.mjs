@@ -1,4 +1,4 @@
-import { HOOK } from "./constants.mjs";
+import { HOOK, debugLog } from "./constants.mjs";
 import { openStartSessionDialog } from "./roster-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
 import { ReportApp } from "./report-app.mjs";
@@ -9,12 +9,20 @@ export function registerChatControls(store, attribution) {
   Hooks.on("renderChatLog", (app, html) => injectControls(html, store, attribution));
   Hooks.on(HOOK.STATE_CHANGED, () => refreshControls(store, attribution));
   Hooks.on(HOOK.QUEUE_CHANGED, () => refreshControls(store, attribution));
+
+  // Core renders the chat sidebar as part of its own startup sequence, before module
+  // "ready" hooks run - by the time this fires, renderChatLog's first (and possibly only)
+  // firing has already been missed. Inject directly into whatever's already in the DOM now,
+  // and keep the hook above for any later re-render (popout, tab switch, etc).
+  if (ui.chat?.element) injectControls(ui.chat.element, store, attribution);
+  else debugLog("chat-controls: ui.chat not yet rendered at ready-time, relying on renderChatLog hook");
 }
 
 function injectControls(html, store, attribution) {
   if (html.querySelector(".cgss-controls")) return refreshControls(store, attribution);
 
-  const form = html.querySelector("#chat-form") ?? html;
+  const form = html.querySelector("#chat-form");
+  if (!form) debugLog("chat-controls: #chat-form not found, appending to chat log root instead", html);
   const bar = document.createElement("div");
   bar.className = "cgss-controls";
   bar.innerHTML = `
@@ -25,7 +33,8 @@ function injectControls(html, store, attribution) {
       <span class="cgss-badge" hidden></span>
     </button>
   `;
-  form.insertAdjacentElement("afterend", bar);
+  if (form) form.insertAdjacentElement("afterend", bar);
+  else html.appendChild(bar);
 
   bar.querySelector('[data-action="cgss-start"]').addEventListener("click", () => onStart(store, attribution));
   bar.querySelector('[data-action="cgss-end"]').addEventListener("click", () => store.endSession());
