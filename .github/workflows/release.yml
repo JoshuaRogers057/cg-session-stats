@@ -32,7 +32,7 @@ jobs:
       # Listing paths explicitly rather than excluding them keeps .git, .github and .claude
       # out of the package by construction.
       - name: Build zip
-        run: zip -r module.zip module.json scripts templates styles lang README.md
+        run: zip -r module.zip module.json scripts templates styles lang README.md LICENSE
 
       - name: Publish release
         env:

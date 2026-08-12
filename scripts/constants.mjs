@@ -1,5 +1,5 @@
 export const MODULE_ID = "cg-session-stats";
-export const MODULE_TITLE = "Champions Guild Session Stats";
+export const MODULE_TITLE = "Session Stats - Champions Guild";
 
 export const EVENT_TYPE = {
   ROLL: 1,

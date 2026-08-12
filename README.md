@@ -1,4 +1,4 @@
-# Champions Guild Session Stats
+# Session Stats - Champions Guild
 
 Tracks per-character combat and d20 statistics across a play session in Foundry VTT, and exports them as a single CSV.
 
@@ -53,6 +53,10 @@ The queues update live. The stat tables refresh only when you open the window or
 
 - **Allow Players to View Report** (default off) — lets players open a read-only report
 - **Debug Logging** — logs dropped and suppressed events to the console
+
+## License
+
+[MIT](LICENSE)
 
 ## Notes
 

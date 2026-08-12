@@ -1,4 +1,4 @@
-import { MODULE_ID, ROLL_CATEGORY, ROLL_TAG, HOOK } from "./constants.mjs";
+import { MODULE_ID, MODULE_TITLE, ROLL_CATEGORY, ROLL_TAG, HOOK } from "./constants.mjs";
 import { buildRollTable, buildInitiativeTable, buildCombatTable, sortTable } from "./aggregator.mjs";
 import { openEditRosterDialog } from "./roster-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
@@ -84,7 +84,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     id: "cgss-report",
     classes: ["cgss-report"],
     tag: "div",
-    window: { title: "Champions Guild Session Stats", icon: "fa-solid fa-chart-column", resizable: true },
+    window: { title: MODULE_TITLE, icon: "fa-solid fa-chart-column", resizable: true },
     position: { width: 820, height: 640 }
   };
 
