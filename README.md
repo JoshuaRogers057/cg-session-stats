@@ -34,7 +34,13 @@ A session is a manually bounded recording window. Starting one refuses to discar
 
 **d20 rolls** — attack rolls, saving throws (including death and concentration saves), ability/skill/tool checks, and initiative. Only the raw die face is stored, never modifiers or totals: the point is comparing how well people rolled, not how strong their builds are. On advantage or disadvantage every die is kept, flagged with which one counted, so the report can separate true luck from effective luck.
 
-**HP changes** — damage dealt and taken, healing given and received, temp HP granted, deaths, and attacks avoided. Effective amounts only: overkill and overhealing are discarded. Damage absorbed by temp HP counts as damage taken. Rest and hit-dice healing are excluded entirely. Summons and familiars roll up to their summoner, and wild shape merges back into the base character.
+**HP changes** — damage dealt and taken, healing given and received, temp HP granted, times downed, kills, and attacks avoided. Effective amounts only: overkill and overhealing are discarded. Damage absorbed by temp HP counts as damage taken. Rest and hit-dice healing are excluded entirely. Summons and familiars roll up to their summoner, and wild shape merges back into the base character.
+
+"Downed" counts how often a character was reduced to 0 HP; the same event credits a kill to whoever landed it. Friendly fire is excluded from both kills and damage dealt, but still counts as damage taken by the recipient. "Attacks avoided" counts attacks that targeted a character and missed.
+
+### The report window
+
+Five tabs — **Attacks**, **Saves**, **Checks**, **Initiative**, and **Combat**. The four roll tabs show roll counts, mean kept die, mean of all dice, natural 20s and 1s, and pass/fail totals; Combat shows the HP and kill columns. Any column header re-sorts. An **NPCs** checkbox adds aggregated monster rows, and the Saves tab can exclude death and concentration saves from its pass rate.
 
 ### Resolving the queues
 
