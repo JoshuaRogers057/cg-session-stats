@@ -1,0 +1,44 @@
+name: Release
+
+# Publishes a release whenever a version tag is pushed, e.g. v0.1.0.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Foundry compares the installed version against the one in the manifest it fetches,
+      # so the released module.json has to carry this tag's version and point `download` at
+      # this tag's zip. `manifest` stays on the /latest/ URL so update checks keep working.
+      - name: Stamp version and download URL into module.json
+        run: |
+          jq --arg v "${{ steps.version.outputs.value }}" \
+             --arg d "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/module.zip" \
+             '.version = $v | .download = $d' module.json > module.tmp
+          mv module.tmp module.json
+
+      # Listing paths explicitly rather than excluding them keeps .git, .github and .claude
+      # out of the package by construction.
+      - name: Build zip
+        run: zip -r module.zip module.json scripts templates styles lang README.md
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          module.json module.zip
+          --title "$GITHUB_REF_NAME"
+          --generate-notes
