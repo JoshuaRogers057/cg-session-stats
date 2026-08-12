@@ -1,6 +1,6 @@
 {
   "CGSS.Settings.AllowPlayerReport.Name": "Allow Players to View Report",
-  "CGSS.Settings.AllowPlayerReport.Hint": "If enabled, players can open the read-only session report. Resolving the attribution queue and exporting remain GM-only.",
+  "CGSS.Settings.AllowPlayerReport.Hint": "If enabled, players can open a read-only session report showing the stat tables only. Unresolved entries awaiting your input are hidden from them, as are Edit Roster, End Session and Export.",
   "CGSS.Settings.Debug.Name": "Debug Logging",
   "CGSS.Settings.Debug.Hint": "Log dropped/unrecorded events to the console for troubleshooting.",
 

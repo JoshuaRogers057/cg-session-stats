@@ -16,18 +16,20 @@
           <span class="cgss-ended">Ended</span>
         {{/if}}
       </div>
-      <div class="cgss-header-actions">
-        <button type="button" data-cgss-action="editRoster"><i class="fa-solid fa-users"></i> Edit Roster</button>
-        {{#if session.recording}}
-          <button type="button" data-cgss-action="endSession"><i class="fa-solid fa-stop"></i> End Session</button>
-        {{else}}
-          <button type="button" data-cgss-action="exportCsv" {{#unless canExport}}disabled{{/unless}}>
-            <i class="fa-solid fa-file-csv"></i> Export CSV
-          </button>
-        {{/if}}
-      </div>
+      {{#if isGM}}
+        <div class="cgss-header-actions">
+          <button type="button" data-cgss-action="editRoster"><i class="fa-solid fa-users"></i> Edit Roster</button>
+          {{#if session.recording}}
+            <button type="button" data-cgss-action="endSession"><i class="fa-solid fa-stop"></i> End Session</button>
+          {{else}}
+            <button type="button" data-cgss-action="exportCsv" {{#unless canExport}}disabled{{/unless}}>
+              <i class="fa-solid fa-file-csv"></i> Export CSV
+            </button>
+          {{/if}}
+        </div>
+      {{/if}}
     {{else}}
-      <p>No session data. Use "Start session" below the chat box to begin recording.</p>
+      <p>No session data.{{#if isGM}} Use "Start session" below the chat box to begin recording.{{/if}}</p>
     {{/if}}
   </section>
 

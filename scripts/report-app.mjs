@@ -134,8 +134,11 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
           }
         : null,
       canExport: !!data && !this.#store.isRecording,
-      queue: this.#queueContext(),
-      rollQueue: this.#rollQueueContext(),
+      // Unresolved entries are GM-only: they are the things not yet assigned, and the
+      // controls that settle them would be meaningless (and unauthorised) for a player.
+      isGM: game.user.isGM,
+      queue: game.user.isGM ? this.#queueContext() : [],
+      rollQueue: game.user.isGM ? this.#rollQueueContext() : [],
       activeTab: tab.id,
       tabs: TAB_DEFS.map((t) => ({ id: t.id, label: t.label, active: t.id === tab.id })),
       showNPCs: this.#showNPCs,

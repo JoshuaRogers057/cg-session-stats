@@ -1,5 +1,4 @@
 import { EVENT_TYPE, MANUAL_SOURCE, ROLL_VERDICT, HOOK } from "./constants.mjs";
-import { relayResolveAttribution, relayResolveRoll } from "./socket.mjs";
 
 /**
  * A thin view over SessionStore's events, not a separate list: an HP event is "in the
@@ -47,9 +46,13 @@ export class AttributionQueue {
     return out;
   }
 
-  /** actorUuid may be a real actor UUID or the MANUAL_SOURCE sentinel. GM-only. */
+  /**
+   * actorUuid may be a real actor UUID or the MANUAL_SOURCE sentinel. GM-only, and
+   * deliberately not relayed: the GM is the only legitimate resolver, so a non-GM caller
+   * (the module API is reachable from any console) simply does nothing.
+   */
   async resolve(index, actorUuid) {
-    if (!game.user.isGM) return this.#relayResolve(index, actorUuid);
+    if (!game.user.isGM) return;
 
     const event = this.store.data?.events?.[index];
     if (!event || event.e !== EVENT_TYPE.HP || !event.q) return;
@@ -58,10 +61,6 @@ export class AttributionQueue {
     event.s = actorUuid === MANUAL_SOURCE ? MANUAL_SOURCE : actorUuid;
     this.store.persist();
     Hooks.callAll(HOOK.QUEUE_CHANGED);
-  }
-
-  async #relayResolve(index, actorUuid) {
-    await relayResolveAttribution(index, actorUuid);
   }
 
   // --- Unresolved pass/fail ------------------------------------------------
@@ -87,7 +86,7 @@ export class AttributionQueue {
 
   /** verdict is one of ROLL_VERDICT. IGNORE leaves the roll counted but pass/fail-less. */
   async resolveRoll(index, verdict) {
-    if (!game.user.isGM) return relayResolveRoll(index, verdict);
+    if (!game.user.isGM) return;
 
     const event = this.store.data?.events?.[index];
     if (!event || event.e !== EVENT_TYPE.ROLL || !event.pq) return;

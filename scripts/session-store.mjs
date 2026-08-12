@@ -32,12 +32,26 @@ export class SessionStore {
   #flush = foundry.utils.debounce(() => this.#writeNow(), FLUSH_DEBOUNCE_MS);
 
   initialize() {
-    if (!game.user.isGM) return;
+    // Every client loads the session for reading - players need it to view the report when
+    // the world setting allows it. Writing stays GM-only; see recordEvent/#writeNow.
     this.#data = game.settings.get(MODULE_ID, SETTING.SESSION_DATA);
+    if (!game.user.isGM) return;
+
     Hooks.on("combatStart", (combat) => this.#noteCombat(combat));
     Hooks.on("createCombatant", (combatant) => {
       if (combatant.combat?.started) this.#noteCombat(combatant.combat);
     });
+  }
+
+  /**
+   * Called on non-GM clients when the GM's flush propagates the world setting. The GM must
+   * never take this path: its in-memory copy is ahead of the setting between debounced
+   * flushes, so overwriting from the setting would discard events not yet written.
+   */
+  syncFromSetting(value) {
+    if (game.user.isGM) return;
+    this.#data = value;
+    Hooks.callAll(HOOK.STATE_CHANGED);
   }
 
   get data() {

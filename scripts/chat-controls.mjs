@@ -1,4 +1,4 @@
-import { HOOK, debugLog } from "./constants.mjs";
+import { MODULE_ID, SETTING, HOOK, debugLog } from "./constants.mjs";
 import { openStartSessionDialog } from "./roster-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
 import { ReportApp } from "./report-app.mjs";
@@ -49,18 +49,25 @@ function refreshControls(store, attribution) {
   const bar = document.querySelector(".cgss-controls");
   if (!bar) return;
 
+  const isGM = game.user.isGM;
   const recording = store.isRecording;
   const hasData = !!store.data;
 
-  bar.querySelector('[data-cgss-action="start"]').hidden = recording;
-  bar.querySelector('[data-cgss-action="end"]').hidden = !recording;
-  bar.querySelector('[data-cgss-action="report"]').hidden = !hasData;
+  // Session lifecycle is GM-only; players only ever get the report, and only when the
+  // world setting allows it.
+  bar.querySelector('[data-cgss-action="start"]').hidden = !isGM || recording;
+  bar.querySelector('[data-cgss-action="end"]').hidden = !isGM || !recording;
+  bar.querySelector('[data-cgss-action="report"]').hidden = !hasData || !(isGM || playersMayView());
 
-  // Both queues need GM input, so the badge reports the combined outstanding count.
+  // The badge counts unresolved entries, which players don't see at all.
   const badge = bar.querySelector(".cgss-badge");
-  const count = attribution.count + attribution.rollCount;
+  const count = isGM ? attribution.count + attribution.rollCount : 0;
   badge.hidden = count === 0;
   badge.textContent = String(count);
+}
+
+export function playersMayView() {
+  return game.settings.get(MODULE_ID, SETTING.ALLOW_PLAYER_REPORT) === true;
 }
 
 async function onStart(store, attribution) {

@@ -18,8 +18,6 @@ export function registerSocket() {
     return false;
   }
   socket.register(SOCKET_ACTION.RECORD_EVENT, _gmRecordEvent);
-  socket.register(SOCKET_ACTION.RESOLVE_ATTRIBUTION, _gmResolveAttribution);
-  socket.register(SOCKET_ACTION.RESOLVE_ROLL, _gmResolveRoll);
   socket.register(SOCKET_ACTION.MARK_HIT_DIE, _gmMarkHitDie);
   return true;
 }
@@ -36,16 +34,6 @@ export function isSocketReady() {
 export async function relayRecordEvent(eventData) {
   if (!socket) return;
   await socket.executeAsGM(SOCKET_ACTION.RECORD_EVENT, eventData);
-}
-
-export async function relayResolveAttribution(index, actorUuid) {
-  if (!socket) return;
-  await socket.executeAsGM(SOCKET_ACTION.RESOLVE_ATTRIBUTION, { index, actorUuid });
-}
-
-export async function relayResolveRoll(index, verdict) {
-  if (!socket) return;
-  await socket.executeAsGM(SOCKET_ACTION.RESOLVE_ROLL, { index, verdict });
 }
 
 /**
@@ -65,16 +53,6 @@ function _gmRecordEvent(eventData) {
   const api = game.modules.get(MODULE_ID).api;
   if (!api?.store) return debugLog("Dropped event, store not ready", eventData);
   api.store.ingestEvent(eventData);
-}
-
-function _gmResolveAttribution({ index, actorUuid }) {
-  const api = game.modules.get(MODULE_ID).api;
-  api?.attribution?.resolve(index, actorUuid);
-}
-
-function _gmResolveRoll({ index, verdict }) {
-  const api = game.modules.get(MODULE_ID).api;
-  api?.attribution?.resolveRoll(index, verdict);
 }
 
 function _gmMarkHitDie(actorUuid) {

@@ -65,7 +65,9 @@ function initializeModule() {
   rollCapture.registerHooks();
   hpCapture.registerHooks();
 
-  if (game.user.isGM) registerChatControls(store, attribution);
+  // Registered for everyone: the controls themselves decide what each user may see, since
+  // players get the report button when the world setting allows it.
+  registerChatControls(store, attribution);
 
   const mod = game.modules.get(MODULE_ID);
   mod.api = { store, attribution, hpCapture };
