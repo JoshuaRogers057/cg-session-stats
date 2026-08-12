@@ -26,9 +26,9 @@ function injectControls(html, store, attribution) {
   const bar = document.createElement("div");
   bar.className = "cgss-controls";
   bar.innerHTML = `
-    <button type="button" data-action="cgss-start"><i class="fa-solid fa-circle-play"></i> Start Session</button>
-    <button type="button" data-action="cgss-end"><i class="fa-solid fa-circle-stop"></i> End Session</button>
-    <button type="button" data-action="cgss-report">
+    <button type="button" data-cgss-action="start"><i class="fa-solid fa-circle-play"></i> Start Session</button>
+    <button type="button" data-cgss-action="end"><i class="fa-solid fa-circle-stop"></i> End Session</button>
+    <button type="button" data-cgss-action="report">
       <i class="fa-solid fa-chart-column"></i> Open Report
       <span class="cgss-badge" hidden></span>
     </button>
@@ -36,9 +36,9 @@ function injectControls(html, store, attribution) {
   if (form) form.insertAdjacentElement("afterend", bar);
   else html.appendChild(bar);
 
-  bar.querySelector('[data-action="cgss-start"]').addEventListener("click", () => onStart(store, attribution));
-  bar.querySelector('[data-action="cgss-end"]').addEventListener("click", () => store.endSession());
-  bar.querySelector('[data-action="cgss-report"]').addEventListener("click", () => openReport(store, attribution));
+  bar.querySelector('[data-cgss-action="start"]').addEventListener("click", () => onStart(store, attribution));
+  bar.querySelector('[data-cgss-action="end"]').addEventListener("click", () => store.endSession());
+  bar.querySelector('[data-cgss-action="report"]').addEventListener("click", () => openReport(store, attribution));
 
   refreshControls(store, attribution);
 }
@@ -50,9 +50,9 @@ function refreshControls(store, attribution) {
   const recording = store.isRecording;
   const hasData = !!store.data;
 
-  bar.querySelector('[data-action="cgss-start"]').hidden = recording;
-  bar.querySelector('[data-action="cgss-end"]').hidden = !recording;
-  bar.querySelector('[data-action="cgss-report"]').hidden = !hasData;
+  bar.querySelector('[data-cgss-action="start"]').hidden = recording;
+  bar.querySelector('[data-cgss-action="end"]').hidden = !recording;
+  bar.querySelector('[data-cgss-action="report"]').hidden = !hasData;
 
   const badge = bar.querySelector(".cgss-badge");
   const count = attribution.count;

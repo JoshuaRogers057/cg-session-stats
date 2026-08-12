@@ -177,9 +177,9 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   #bindTop() {
     const root = this.element;
-    root.querySelector('[data-action="editRoster"]')?.addEventListener("click", () => openEditRosterDialog(this.#store));
-    root.querySelector('[data-action="endSession"]')?.addEventListener("click", () => this.#store.endSession());
-    root.querySelector('[data-action="exportCsv"]')?.addEventListener("click", () => exportSessionCSV(this.#store, this.#attribution));
+    root.querySelector('[data-cgss-action="editRoster"]')?.addEventListener("click", () => openEditRosterDialog(this.#store));
+    root.querySelector('[data-cgss-action="endSession"]')?.addEventListener("click", () => this.#store.endSession());
+    root.querySelector('[data-cgss-action="exportCsv"]')?.addEventListener("click", () => exportSessionCSV(this.#store, this.#attribution));
     root.querySelectorAll("select[data-attribution-index]").forEach((sel) => {
       sel.addEventListener("change", () => {
         const index = Number(sel.dataset.attributionIndex);
@@ -190,29 +190,29 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   #bindMain() {
     const root = this.element;
-    root.querySelectorAll('[data-action="changeTab"]').forEach((el) => {
+    root.querySelectorAll('[data-cgss-action="changeTab"]').forEach((el) => {
       el.addEventListener("click", () => {
         this.#activeTab = el.dataset.tab;
         this.render({ parts: ["main"] });
       });
     });
-    root.querySelectorAll('[data-action="sortColumn"]').forEach((el) => {
+    root.querySelectorAll('[data-cgss-action="sortColumn"]').forEach((el) => {
       el.addEventListener("click", () => {
         this.#applySort(el.dataset.key);
         this.render({ parts: ["main"] });
       });
     });
-    root.querySelector('[data-action="toggleNPCs"]')?.addEventListener("change", (ev) => {
+    root.querySelector('[data-cgss-action="toggleNPCs"]')?.addEventListener("change", (ev) => {
       this.#showNPCs = ev.target.checked;
       this.#recompute();
       this.render({ parts: ["main"] });
     });
-    root.querySelector('[data-action="toggleSpecialSaves"]')?.addEventListener("change", (ev) => {
+    root.querySelector('[data-cgss-action="toggleSpecialSaves"]')?.addEventListener("change", (ev) => {
       this.#excludeSpecialSaves = ev.target.checked;
       this.#recompute();
       this.render({ parts: ["main"] });
     });
-    root.querySelector('[data-action="refresh"]')?.addEventListener("click", () => {
+    root.querySelector('[data-cgss-action="refresh"]')?.addEventListener("click", () => {
       this.#recompute();
       this.render({ parts: ["main"] });
     });
