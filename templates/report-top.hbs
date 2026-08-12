@@ -31,6 +31,32 @@
     {{/if}}
   </section>
 
+  {{#if rollQueue.length}}
+    <section class="cgss-queue cgss-roll-queue">
+      <h3>Unresolved Pass/Fail ({{rollQueue.length}})</h3>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Character</th><th>Roll</th><th>Die</th><th>Result</th></tr>
+        </thead>
+        <tbody>
+          {{#each rollQueue}}
+            <tr>
+              <td>{{this.timeLabel}}</td>
+              <td>{{this.actorName}}</td>
+              <td>{{this.categoryLabel}}</td>
+              <td>{{this.face}}</td>
+              <td class="cgss-verdict">
+                <button type="button" data-cgss-action="resolveRoll" data-index="{{this.index}}" data-verdict="pass">Pass</button>
+                <button type="button" data-cgss-action="resolveRoll" data-index="{{this.index}}" data-verdict="fail">Fail</button>
+                <button type="button" data-cgss-action="resolveRoll" data-index="{{this.index}}" data-verdict="ignore" title="Leave this roll out of pass/fail entirely">N/A</button>
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </section>
+  {{/if}}
+
   {{#if queue.length}}
     <section class="cgss-queue">
       <h3>Unresolved Attribution ({{queue.length}})</h3>

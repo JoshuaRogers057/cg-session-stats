@@ -1,4 +1,4 @@
-import { MODULE_ID, SETTING, EVENT_TYPE, HOOK, debugLog } from "./constants.mjs";
+import { MODULE_ID, SETTING, EVENT_TYPE, ROLL_CATEGORY, HOOK, debugLog } from "./constants.mjs";
 import { relayRecordEvent } from "./socket.mjs";
 
 const FLUSH_DEBOUNCE_MS = 3000;
@@ -93,7 +93,7 @@ export class SessionStore {
     const resolved = this.#resolveActor(raw.actorUuid);
     if (!resolved) return debugLog("Dropped roll, actor not trackable this session", raw);
 
-    this.#data.events.push({
+    const event = {
       e: EVENT_TYPE.ROLL,
       t: this.#elapsedNow(),
       a: resolved.uuid,
@@ -102,7 +102,16 @@ export class SessionStore {
       k: raw.keptIndex,
       p: raw.pass ?? null,
       ...(raw.tag ? { x: raw.tag } : {})
-    });
+    };
+
+    // dnd5e sets no target DC on ability/skill/tool checks, so the system never reports
+    // pass/fail for them and they would silently contribute nothing to the pass-rate
+    // column. Flag them for the GM to settle. Initiative is exempt - it has no target
+    // number at all, so pass/fail is meaningless rather than merely unknown.
+    if (event.p === null && raw.category !== ROLL_CATEGORY.INITIATIVE) event.pq = 1;
+
+    this.#data.events.push(event);
+    if (event.pq) Hooks.callAll(HOOK.QUEUE_CHANGED);
   }
 
   #ingestHP(raw) {

@@ -56,8 +56,9 @@ function refreshControls(store, attribution) {
   bar.querySelector('[data-cgss-action="end"]').hidden = !recording;
   bar.querySelector('[data-cgss-action="report"]').hidden = !hasData;
 
+  // Both queues need GM input, so the badge reports the combined outstanding count.
   const badge = bar.querySelector(".cgss-badge");
-  const count = attribution.count;
+  const count = attribution.count + attribution.rollCount;
   badge.hidden = count === 0;
   badge.textContent = String(count);
 }

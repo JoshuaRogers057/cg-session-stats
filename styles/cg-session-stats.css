@@ -59,6 +59,18 @@
   margin-bottom: 8px;
 }
 
+.cgss-report .cgss-verdict {
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.cgss-report .cgss-verdict button {
+  padding: 0 8px;
+  line-height: 1.6;
+  width: auto;
+}
+
 .cgss-report .cgss-tabs {
   display: flex;
   align-items: center;

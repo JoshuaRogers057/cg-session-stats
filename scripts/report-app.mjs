@@ -59,6 +59,14 @@ function formatHPChange({ dmg, heal, thp }) {
   return parts.join(", ") || "-";
 }
 
+function describeRoll(category, tag) {
+  if (tag === ROLL_TAG.DEATH_SAVE) return "Death Save";
+  if (tag === ROLL_TAG.CONCENTRATION) return "Concentration";
+  if (category === ROLL_CATEGORY.ATTACK) return "Attack";
+  if (category === ROLL_CATEGORY.SAVE) return "Saving Throw";
+  return "Ability Check";
+}
+
 function formatCell(key, value) {
   if (value === null || value === undefined) return "";
   if (key === "meanKept" || key === "meanAll" || key === "mean") return value.toFixed(1);
@@ -125,6 +133,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
         : null,
       canExport: !!data && !this.#store.isRecording,
       queue: this.#queueContext(),
+      rollQueue: this.#rollQueueContext(),
       activeTab: tab.id,
       tabs: TAB_DEFS.map((t) => ({ id: t.id, label: t.label, active: t.id === tab.id })),
       showNPCs: this.#showNPCs,
@@ -170,6 +179,18 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
   }
 
+  #rollQueueContext() {
+    const data = this.#store.data;
+    if (!data) return [];
+    return this.#attribution.rollEntries.map((e) => ({
+      index: e.index,
+      timeLabel: formatDuration(e.t),
+      actorName: data.actors[e.actorUuid]?.n ?? "?",
+      categoryLabel: describeRoll(e.category, e.tag),
+      face: e.face
+    }));
+  }
+
   #applySort(key) {
     const current = this.#sortState[this.#activeTab];
     const dir = current?.key === key && current.dir === "desc" ? "asc" : "desc";
@@ -193,6 +214,11 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       sel.addEventListener("change", () => {
         const index = Number(sel.dataset.attributionIndex);
         if (sel.value) this.#attribution.resolve(index, sel.value);
+      });
+    });
+    root.querySelectorAll('[data-cgss-action="resolveRoll"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this.#attribution.resolveRoll(Number(btn.dataset.index), btn.dataset.verdict);
       });
     });
   }

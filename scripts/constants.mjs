@@ -27,7 +27,15 @@ export const SETTING = {
 export const SOCKET_ACTION = {
   RECORD_EVENT: "recordEvent",
   RESOLVE_ATTRIBUTION: "resolveAttribution",
+  RESOLVE_ROLL: "resolveRoll",
   MARK_HIT_DIE: "markHitDie"
+};
+
+/** Verdicts for resolving a roll whose pass/fail the system never reported. */
+export const ROLL_VERDICT = {
+  PASS: "pass",
+  FAIL: "fail",
+  IGNORE: "ignore"
 };
 
 export const HOOK = {

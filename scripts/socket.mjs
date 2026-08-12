@@ -19,6 +19,7 @@ export function registerSocket() {
   }
   socket.register(SOCKET_ACTION.RECORD_EVENT, _gmRecordEvent);
   socket.register(SOCKET_ACTION.RESOLVE_ATTRIBUTION, _gmResolveAttribution);
+  socket.register(SOCKET_ACTION.RESOLVE_ROLL, _gmResolveRoll);
   socket.register(SOCKET_ACTION.MARK_HIT_DIE, _gmMarkHitDie);
   return true;
 }
@@ -40,6 +41,11 @@ export async function relayRecordEvent(eventData) {
 export async function relayResolveAttribution(index, actorUuid) {
   if (!socket) return;
   await socket.executeAsGM(SOCKET_ACTION.RESOLVE_ATTRIBUTION, { index, actorUuid });
+}
+
+export async function relayResolveRoll(index, verdict) {
+  if (!socket) return;
+  await socket.executeAsGM(SOCKET_ACTION.RESOLVE_ROLL, { index, verdict });
 }
 
 /**
@@ -64,6 +70,11 @@ function _gmRecordEvent(eventData) {
 function _gmResolveAttribution({ index, actorUuid }) {
   const api = game.modules.get(MODULE_ID).api;
   api?.attribution?.resolve(index, actorUuid);
+}
+
+function _gmResolveRoll({ index, verdict }) {
+  const api = game.modules.get(MODULE_ID).api;
+  api?.attribution?.resolveRoll(index, verdict);
 }
 
 function _gmMarkHitDie(actorUuid) {
