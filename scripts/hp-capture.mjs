@@ -2,10 +2,12 @@ import { EVENT_TYPE, HOOK, debugLog } from "./constants.mjs";
 import { resolveAttributedActor } from "./actor-resolve.mjs";
 import { relayMarkHitDie } from "./socket.mjs";
 
-// How long the raw-update fallback waits for a matching midi-qol.RollComplete to claim an
-// actor's HP change before treating it as unattributed. RollComplete fires shortly after
-// the update it corresponds to, well within this window in practice.
-const DEDUPE_WINDOW_MS = 200;
+// How long the raw-update fallback defers before treating an HP change as unattributed.
+// This is a settling delay, not a correctness guarantee - it gives the Midi-derived event
+// (which may be arriving over the socket from another client) time to reach the store
+// before hasRecentHPEvent() is consulted. The store check is what actually prevents
+// double-recording; see #recordFallback.
+const DEDUPE_WINDOW_MS = 1500;
 
 /**
  * Two independent capture paths, by necessity:
@@ -173,6 +175,16 @@ export class HPCapture {
     else if (deltaHP > 0) heal = deltaHP;
     if (deltaTemp > 0) thp = deltaTemp;
     if (dmg === 0 && heal === 0 && thp === 0) return;
+
+    // The authoritative dedup. Midi applies damage with fire-and-forget actor.update()
+    // calls when waitForDamageApplication is off, so the update frequently lands *after*
+    // midi-qol.RollComplete rather than before it - and when a player runs the workflow,
+    // RollComplete fires on their client while the GM only ever sees the resulting update.
+    // Neither case leaves a pending timer to cancel, so cancellation alone cannot dedup;
+    // checking what's actually been recorded covers every ordering and every client.
+    if (this.#store.hasRecentHPEvent(attributed.uuid)) {
+      return debugLog("Fallback suppressed, Midi already recorded this change", { actor: actor.name, dmg, heal, thp });
+    }
 
     debugLog("Unattributed HP change caught by fallback", { actor: actor.name, dmg, heal, thp });
 

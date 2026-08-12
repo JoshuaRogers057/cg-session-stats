@@ -138,6 +138,25 @@ export class SessionStore {
     if (event.q) Hooks.callAll(HOOK.QUEUE_CHANGED);
   }
 
+  /**
+   * Has an HP event already been recorded against this target in the last `windowSeconds`?
+   * Used by the raw-update fallback in hp-capture.mjs to avoid double-recording a change
+   * Midi already accounted for. Deliberately matches on target and recency only, not on
+   * amounts: the Midi path folds temp-HP absorption into its damage figure while a raw HP
+   * diff cannot see it, so the two legitimately disagree on magnitude for the same hit.
+   */
+  hasRecentHPEvent(targetUuid, windowSeconds = 6) {
+    if (!this.#data) return false;
+    const now = this.#elapsedNow();
+    const events = this.#data.events;
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (now - e.t > windowSeconds) break;
+      if (e.e === EVENT_TYPE.HP && e.g === targetUuid) return true;
+    }
+    return false;
+  }
+
   /** Resolves an actor for tracking purposes: PCs must be on the roster, NPCs are always eligible. */
   #resolveActor(uuid) {
     if (!uuid) return null;
