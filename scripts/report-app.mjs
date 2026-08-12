@@ -272,3 +272,16 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this.#tickInterval) clearInterval(this.#tickInterval);
   }
 }
+
+let reportApp = null;
+
+/**
+ * Opens the single shared report window. Lives here rather than beside either launch
+ * button so the chat controls and the journal-tab button address the same instance
+ * instead of stacking duplicates.
+ */
+export function openReport(store, attribution) {
+  if (!reportApp) reportApp = new ReportApp(store, attribution);
+  if (reportApp.rendered) reportApp.bringToFront();
+  else reportApp.render({ force: true });
+}

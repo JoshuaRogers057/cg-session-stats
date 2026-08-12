@@ -57,7 +57,7 @@ The queues update live. The stat tables refresh only when you open the window or
 
 ## Settings
 
-- **Allow Players to View Report** (default off) — gives players their own **Open Report** button showing the stat tables only. Both queues are hidden from them, along with Edit Roster, End Session, and Export, so players never see entries still waiting on the GM. Takes effect immediately; no reload needed.
+- **Allow Players to View Report** (default off) — gives players a **Session Report** button at the top of their **Journal** sidebar tab, showing the stat tables only. Both queues are hidden from them, along with Edit Roster, End Session, and Export, so players never see entries still waiting on the GM. Takes effect immediately; no reload needed.
 - **Debug Logging** — logs dropped and suppressed events to the console
 
 ## License

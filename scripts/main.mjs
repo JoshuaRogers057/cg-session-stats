@@ -6,6 +6,7 @@ import { AttributionQueue } from "./attribution.mjs";
 import { RollCapture } from "./roll-capture.mjs";
 import { HPCapture } from "./hp-capture.mjs";
 import { registerChatControls } from "./chat-controls.mjs";
+import { registerJournalControls } from "./journal-controls.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -65,9 +66,10 @@ function initializeModule() {
   rollCapture.registerHooks();
   hpCapture.registerHooks();
 
-  // Registered for everyone: the controls themselves decide what each user may see, since
-  // players get the report button when the world setting allows it.
+  // GM launches the report from the chat controls; players from the Journal tab. Each
+  // registrar self-gates, so both are called unconditionally.
   registerChatControls(store, attribution);
+  registerJournalControls(store, attribution);
 
   const mod = game.modules.get(MODULE_ID);
   mod.api = { store, attribution, hpCapture };

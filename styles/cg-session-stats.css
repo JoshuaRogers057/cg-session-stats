@@ -124,6 +124,19 @@
   font-weight: bold;
 }
 
+/* Players' report launcher, injected at the top of the Journal sidebar tab. */
+.cgss-journal-controls {
+  margin-bottom: 4px;
+}
+
+.cgss-journal-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
 .cgss-roster-toolbar {
   display: flex;
   gap: 4px;

@@ -1,11 +1,13 @@
-import { MODULE_ID, SETTING, HOOK, debugLog } from "./constants.mjs";
+import { HOOK, debugLog } from "./constants.mjs";
 import { openStartSessionDialog } from "./roster-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
-import { ReportApp } from "./report-app.mjs";
-
-let reportApp = null;
+import { openReport } from "./report-app.mjs";
 
 export function registerChatControls(store, attribution) {
+  // GM-only: the session lifecycle is theirs, and players launch the report from the
+  // Journal tab instead (see journal-controls.mjs). Nothing is injected for players at all.
+  if (!game.user.isGM) return;
+
   Hooks.on("renderChatLog", (app, html) => injectControls(html, store, attribution));
   Hooks.on(HOOK.STATE_CHANGED, () => refreshControls(store, attribution));
   Hooks.on(HOOK.QUEUE_CHANGED, () => refreshControls(store, attribution));
@@ -49,25 +51,17 @@ function refreshControls(store, attribution) {
   const bar = document.querySelector(".cgss-controls");
   if (!bar) return;
 
-  const isGM = game.user.isGM;
   const recording = store.isRecording;
   const hasData = !!store.data;
 
-  // Session lifecycle is GM-only; players only ever get the report, and only when the
-  // world setting allows it.
-  bar.querySelector('[data-cgss-action="start"]').hidden = !isGM || recording;
-  bar.querySelector('[data-cgss-action="end"]').hidden = !isGM || !recording;
-  bar.querySelector('[data-cgss-action="report"]').hidden = !hasData || !(isGM || playersMayView());
+  bar.querySelector('[data-cgss-action="start"]').hidden = recording;
+  bar.querySelector('[data-cgss-action="end"]').hidden = !recording;
+  bar.querySelector('[data-cgss-action="report"]').hidden = !hasData;
 
-  // The badge counts unresolved entries, which players don't see at all.
   const badge = bar.querySelector(".cgss-badge");
-  const count = isGM ? attribution.count + attribution.rollCount : 0;
+  const count = attribution.count + attribution.rollCount;
   badge.hidden = count === 0;
   badge.textContent = String(count);
-}
-
-export function playersMayView() {
-  return game.settings.get(MODULE_ID, SETTING.ALLOW_PLAYER_REPORT) === true;
 }
 
 async function onStart(store, attribution) {
@@ -98,8 +92,3 @@ function confirmUnexportedData() {
   });
 }
 
-function openReport(store, attribution) {
-  if (!reportApp) reportApp = new ReportApp(store, attribution);
-  if (reportApp.rendered) reportApp.bringToFront();
-  else reportApp.render({ force: true });
-}
