@@ -3,7 +3,8 @@ export const MODULE_TITLE = "Champions Guild Session Stats";
 
 export const EVENT_TYPE = {
   ROLL: 1,
-  HP: 2
+  HP: 2,
+  MISS: 3 // an attack targeted this actor and failed to connect
 };
 
 export const ROLL_CATEGORY = {

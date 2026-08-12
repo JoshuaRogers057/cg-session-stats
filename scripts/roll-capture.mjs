@@ -44,11 +44,27 @@ export class RollCapture {
     const faces = extractD20Faces(roll);
     if (!faces) return; // fixed/no-d20 attack roll
 
+    // Midi keeps hits in two sets - hitTargetsEC holds those that connected only under the
+    // optional "challenge mode armor" rule - and treats the union as hit (its own
+    // processDamageRoll does exactly this). Anything targeted but in neither set missed.
+    const targets = [...(workflow.targets ?? [])];
+    const hitUuids = new Set(
+      [...(workflow.hitTargets ?? []), ...(workflow.hitTargetsEC ?? [])].map(tokenUuid).filter(Boolean)
+    );
+
     let pass = null;
-    if (workflow.hitTargets?.size > 0) pass = true;
-    else if (workflow.targets?.size > 0) pass = false;
+    if (hitUuids.size > 0) pass = true;
+    else if (targets.length > 0) pass = false;
 
     this.#push(actor, ROLL_CATEGORY.ATTACK, faces, pass);
+
+    for (const token of targets) {
+      const uuid = tokenUuid(token);
+      if (!uuid || hitUuids.has(uuid)) continue;
+      const targetActor = token?.actor;
+      if (!targetActor) continue;
+      this.store.recordEvent(EVENT_TYPE.MISS, { targetUuid: resolveAttributedActor(targetActor).uuid });
+    }
   }
 
   #onD20(rolls, subject, category, tag) {
@@ -90,6 +106,11 @@ export class RollCapture {
       ...(tag ? { tag } : {})
     });
   }
+}
+
+/** Token sets on the workflow are rebuilt from UUIDs, so compare by UUID not identity. */
+function tokenUuid(token) {
+  return token?.document?.uuid ?? token?.uuid ?? null;
 }
 
 function extractD20Faces(roll) {

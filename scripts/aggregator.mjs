@@ -80,6 +80,15 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
   const groups = new Map();
 
   for (const e of data.events) {
+    // Attacks avoided belong to whoever was shot at, so they need no source at all.
+    if (e.e === EVENT_TYPE.MISS) {
+      const identity = data.actors[e.g];
+      if (identity && !(identity.t === "npc" && !showNPCs)) {
+        getCombatGroup(groups, e.g, identity).avoided += 1;
+      }
+      continue;
+    }
+
     if (e.e !== EVENT_TYPE.HP) continue;
 
     // Damage taken / healing received / downed always attribute to the target, regardless
@@ -102,6 +111,10 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
         if (!e.pvp) g.dmgDealt += e.dmg ?? 0;
         g.healGiven += e.heal ?? 0;
         g.thpGiven += e.thp ?? 0;
+        // The same `dn` flag that counts as "downed" for the victim counts as a kill for
+        // whoever landed it. Friendly fire is excluded, matching damage-dealt: dropping an
+        // ally shouldn't read as a kill.
+        if (e.dn && !e.pvp) g.kills += 1;
       }
     }
   }
@@ -114,7 +127,9 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
     healGiven: g.healGiven,
     healRecv: g.healRecv,
     thpGiven: g.thpGiven,
-    downed: g.downed
+    downed: g.downed,
+    kills: g.kills,
+    avoided: g.avoided
   }));
 
   return sortTable(rows, "dmgDealt", "desc");
@@ -151,7 +166,9 @@ function getCombatGroup(groups, uuid, identity) {
       healGiven: 0,
       healRecv: 0,
       thpGiven: 0,
-      downed: 0
+      downed: 0,
+      kills: 0,
+      avoided: 0
     };
     groups.set(key, g);
   }

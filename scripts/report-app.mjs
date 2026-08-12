@@ -30,7 +30,9 @@ const COMBAT_COLUMNS = [
   { key: "healGiven", label: "Heal Given" },
   { key: "healRecv", label: "Heal Received" },
   { key: "thpGiven", label: "Temp HP Given" },
-  { key: "downed", label: "Downed" }
+  { key: "downed", label: "Downed" },
+  { key: "kills", label: "Kills" },
+  { key: "avoided", label: "Attacks Avoided" }
 ];
 
 const TAB_DEFS = [

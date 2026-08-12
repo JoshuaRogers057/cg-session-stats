@@ -84,6 +84,7 @@ export class SessionStore {
     const { type, ...raw } = payload;
     if (type === EVENT_TYPE.ROLL) this.#ingestRoll(raw);
     else if (type === EVENT_TYPE.HP) this.#ingestHP(raw);
+    else if (type === EVENT_TYPE.MISS) this.#ingestMiss(raw);
     else return debugLog("Dropped event, unknown type", payload);
 
     this.#flush();
@@ -112,6 +113,14 @@ export class SessionStore {
 
     this.#data.events.push(event);
     if (event.pq) Hooks.callAll(HOOK.QUEUE_CHANGED);
+  }
+
+  /** An attack that targeted this actor and missed. No source is kept - the stat is about
+   *  the defender, and crediting the attacker for missing isn't meaningful. */
+  #ingestMiss(raw) {
+    const target = this.#resolveActor(raw.targetUuid);
+    if (!target) return debugLog("Dropped miss, target not trackable this session", raw);
+    this.#data.events.push({ e: EVENT_TYPE.MISS, t: this.#elapsedNow(), g: target.uuid });
   }
 
   #ingestHP(raw) {
