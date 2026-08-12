@@ -119,7 +119,9 @@ export class SessionStore {
       if (source) sourceUuid = source.uuid;
       else queued = true; // non-roster PC or otherwise untrackable source - still needs a home
     }
-    if (!raw.sourceUuid && raw.dmg > 0) queued = true; // damage with literally no source
+    // Any sourceless HP change is attributable, healing and temp HP included - a manual
+    // heal is exactly as much "who did that?" as a manual point of damage.
+    if (!raw.sourceUuid && (raw.dmg > 0 || raw.heal > 0 || raw.thp > 0)) queued = true;
 
     const event = {
       e: EVENT_TYPE.HP,

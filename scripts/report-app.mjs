@@ -50,6 +50,15 @@ function formatDuration(totalSeconds) {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
+/** A queue entry can carry several kinds of change at once, so describe each present one. */
+function formatHPChange({ dmg, heal, thp }) {
+  const parts = [];
+  if (dmg) parts.push(`${dmg} damage`);
+  if (heal) parts.push(`${heal} healing`);
+  if (thp) parts.push(`${thp} temp HP`);
+  return parts.join(", ") || "-";
+}
+
 function formatCell(key, value) {
   if (value === null || value === undefined) return "";
   if (key === "meanKept" || key === "meanAll" || key === "mean") return value.toFixed(1);
@@ -156,7 +165,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       index: e.index,
       timeLabel: formatDuration(e.t),
       targetName: data.actors[e.targetUuid]?.n ?? "?",
-      amount: e.amount,
+      changeLabel: formatHPChange(e),
       candidates
     }));
   }

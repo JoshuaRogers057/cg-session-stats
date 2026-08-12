@@ -36,14 +36,14 @@
       <h3>Unresolved Attribution ({{queue.length}})</h3>
       <table>
         <thead>
-          <tr><th>Time</th><th>Target</th><th>Amount</th><th>Source</th></tr>
+          <tr><th>Time</th><th>Target</th><th>Change</th><th>Source</th></tr>
         </thead>
         <tbody>
           {{#each queue}}
             <tr>
               <td>{{this.timeLabel}}</td>
               <td>{{this.targetName}}</td>
-              <td>{{this.amount}}</td>
+              <td>{{this.changeLabel}}</td>
               <td>
                 <select data-attribution-index="{{this.index}}">
                   <option value="">- assign -</option>

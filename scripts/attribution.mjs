@@ -11,12 +11,19 @@ export class AttributionQueue {
     this.store = store;
   }
 
-  /** { index, t, targetUuid, amount }[] - index is the raw index into store.data.events. */
+  /**
+   * { index, t, targetUuid, dmg, heal, thp }[] - index is the raw index into
+   * store.data.events. A single entry can carry more than one kind of change (a manual
+   * edit can raise HP and temp HP at once), so all three are reported rather than one
+   * collapsed "amount".
+   */
   get entries() {
     const events = this.store.data?.events ?? [];
     const out = [];
     events.forEach((e, index) => {
-      if (e.e === EVENT_TYPE.HP && e.q) out.push({ index, t: e.t, targetUuid: e.g, amount: e.dmg });
+      if (e.e === EVENT_TYPE.HP && e.q) {
+        out.push({ index, t: e.t, targetUuid: e.g, dmg: e.dmg ?? 0, heal: e.heal ?? 0, thp: e.thp ?? 0 });
+      }
     });
     return out;
   }

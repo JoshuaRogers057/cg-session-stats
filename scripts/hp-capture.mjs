@@ -221,7 +221,7 @@ export class HPCapture {
     this.#store.recordEvent(EVENT_TYPE.HP, {
       targetUuid: attributed.uuid,
       sourceUuid: null,
-      needsAttribution: dmg > 0,
+      needsAttribution: dmg > 0 || heal > 0 || thp > 0,
       dmg,
       heal,
       thp,
