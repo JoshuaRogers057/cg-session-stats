@@ -124,6 +124,30 @@
   font-weight: bold;
 }
 
+.cgss-roster-toolbar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.cgss-roster-toolbar .cgss-roster-search {
+  flex: 1;
+}
+
+.cgss-roster-toolbar button {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  line-height: 1.8;
+}
+
+.cgss-roster-count {
+  margin: 4px 0 0;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
 .cgss-roster-list {
   max-height: 320px;
   overflow-y: auto;
@@ -137,4 +161,22 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.cgss-roster-row[hidden] {
+  display: none;
+}
+
+.cgss-roster-row .cgss-roster-name {
+  flex: 1;
+}
+
+/* Marks characters whose player is connected right now - these are checked by default. */
+.cgss-roster-row .cgss-online {
+  font-size: 0.8em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(90, 160, 90, 0.25);
+  color: var(--color-text-dark-primary, inherit);
+  white-space: nowrap;
 }
