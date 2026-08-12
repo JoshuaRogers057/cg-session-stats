@@ -2,11 +2,29 @@ import { MODULE_ID, SOCKET_ACTION, debugLog } from "./constants.mjs";
 
 let socket;
 
+/**
+ * @returns {boolean} true if the socket registered successfully. Fails if `"socket": true`
+ * is missing from module.json - socketlib.registerModule() then returns undefined instead
+ * of throwing, which would otherwise surface as a cryptic "Cannot read properties of
+ * undefined" deep in socketlib's own code with no indication of the actual cause.
+ */
 export function registerSocket() {
   socket = globalThis.socketlib.registerModule(MODULE_ID);
+  if (!socket) {
+    console.error(
+      `${MODULE_ID} | socketlib.registerModule() returned nothing - is "socket": true set in this module's module.json? ` +
+        `(A world reload is required after adding it; a browser refresh alone is not enough.)`
+    );
+    return false;
+  }
   socket.register(SOCKET_ACTION.RECORD_EVENT, _gmRecordEvent);
   socket.register(SOCKET_ACTION.RESOLVE_ATTRIBUTION, _gmResolveAttribution);
   socket.register(SOCKET_ACTION.MARK_HIT_DIE, _gmMarkHitDie);
+  return true;
+}
+
+export function isSocketReady() {
+  return !!socket;
 }
 
 /**

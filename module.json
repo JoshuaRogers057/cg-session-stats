@@ -3,6 +3,7 @@
   "title": "Champions Guild Session Stats",
   "description": "Tracks per-character combat and d20 statistics across a session and exports them as CSV. Requires dnd5e and Midi-QOL.",
   "version": "0.1.0",
+  "socket": true,
   "authors": [
     {
       "name": "Josh"

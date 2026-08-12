@@ -1,6 +1,6 @@
 import { MODULE_ID, MODULE_TITLE } from "./constants.mjs";
 import { registerSettings } from "./settings.mjs";
-import { registerSocket } from "./socket.mjs";
+import { registerSocket, isSocketReady } from "./socket.mjs";
 import { SessionStore } from "./session-store.mjs";
 import { AttributionQueue } from "./attribution.mjs";
 import { RollCapture } from "./roll-capture.mjs";
@@ -36,6 +36,17 @@ function checkDependencies() {
 
   if (!globalThis.socketlib) {
     const message = `${MODULE_TITLE} requires socketlib to be installed and enabled. Session stats will not be recorded.`;
+    console.error(`${MODULE_ID} | ${message}`);
+    if (game.user.isGM) ui.notifications.error(message);
+    return false;
+  }
+
+  // socketlib is active, but its per-module socket may still have failed to register (e.g.
+  // a missing "socket": true in this module's manifest) - see socket.mjs for the console
+  // error explaining why. Catch that here rather than limping along with player events
+  // silently never reaching the GM.
+  if (!isSocketReady()) {
+    const message = `${MODULE_TITLE} failed to set up its network channel. Session stats will not be recorded. Check the console for details.`;
     console.error(`${MODULE_ID} | ${message}`);
     if (game.user.isGM) ui.notifications.error(message);
     return false;
