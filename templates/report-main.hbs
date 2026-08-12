@@ -1,40 +1,43 @@
 {{!-- Tab navigation + the active tab's table. Only re-rendered on open, tab switch, a
-      filter toggle, or the manual refresh control - never automatically on new events. --}}
-<nav class="cgss-tabs">
-  {{#each tabs}}
-    <a data-cgss-action="changeTab" data-tab="{{this.id}}" class="{{#if this.active}}active{{/if}}">{{this.label}}</a>
-  {{/each}}
-  <label class="cgss-npc-toggle">
-    <input type="checkbox" data-cgss-action="toggleNPCs" {{#if showNPCs}}checked{{/if}}> NPCs
-  </label>
-  {{#if showSpecialSavesToggle}}
-    <label class="cgss-special-saves-toggle">
-      <input type="checkbox" data-cgss-action="toggleSpecialSaves" {{#if excludeSpecialSaves}}checked{{/if}}>
-      Exclude death/concentration
+      filter toggle, or the manual refresh control - never automatically on new events.
+      Single root element required by ApplicationV2 (see report-top.hbs). --}}
+<div class="cgss-main">
+  <nav class="cgss-tabs">
+    {{#each tabs}}
+      <a data-cgss-action="changeTab" data-tab="{{this.id}}" class="{{#if this.active}}active{{/if}}">{{this.label}}</a>
+    {{/each}}
+    <label class="cgss-npc-toggle">
+      <input type="checkbox" data-cgss-action="toggleNPCs" {{#if showNPCs}}checked{{/if}}> NPCs
     </label>
-  {{/if}}
-  <button type="button" data-cgss-action="refresh" title="Refresh tables"><i class="fa-solid fa-arrows-rotate"></i></button>
-</nav>
+    {{#if showSpecialSavesToggle}}
+      <label class="cgss-special-saves-toggle">
+        <input type="checkbox" data-cgss-action="toggleSpecialSaves" {{#if excludeSpecialSaves}}checked{{/if}}>
+        Exclude death/concentration
+      </label>
+    {{/if}}
+    <button type="button" data-cgss-action="refresh" title="Refresh tables"><i class="fa-solid fa-arrows-rotate"></i></button>
+  </nav>
 
-<table class="cgss-table">
-  <thead>
-    <tr>
-      {{#each columns}}
-        <th data-cgss-action="sortColumn" data-key="{{this.key}}">{{this.label}}</th>
-      {{/each}}
-    </tr>
-  </thead>
-  <tbody>
-    {{#each rows}}
-      <tr class="{{#unless this.isPC}}cgss-npc-row{{/unless}}">
-        {{#each ../columns}}
-          <td data-danger="{{#if (and (eq this.key "nat1") ../dangerNat1)}}true{{/if}}">
-            {{lookup ../cells this.key}}
-          </td>
+  <table class="cgss-table">
+    <thead>
+      <tr>
+        {{#each columns}}
+          <th data-cgss-action="sortColumn" data-key="{{this.key}}">{{this.label}}</th>
         {{/each}}
       </tr>
-    {{else}}
-      <tr><td colspan="{{columns.length}}">No data yet.</td></tr>
-    {{/each}}
-  </tbody>
-</table>
+    </thead>
+    <tbody>
+      {{#each rows}}
+        <tr class="{{#unless this.isPC}}cgss-npc-row{{/unless}}">
+          {{#each ../columns}}
+            <td data-danger="{{#if (and (eq this.key "nat1") ../dangerNat1)}}true{{/if}}">
+              {{lookup ../cells this.key}}
+            </td>
+          {{/each}}
+        </tr>
+      {{else}}
+        <tr><td colspan="{{columns.length}}">No data yet.</td></tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>

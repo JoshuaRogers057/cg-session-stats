@@ -1,58 +1,62 @@
 {{!-- Header + attribution queue. Re-rendered live as new events/queue entries arrive,
-      independently of the stat tables in report-main.hbs. --}}
-<section class="cgss-header">
-  {{#if hasSession}}
-    <h2>{{session.name}}</h2>
-    <div class="cgss-header-stats">
-      <span><i class="fa-solid fa-clock"></i> {{session.elapsedLabel}}</span>
-      <span><i class="fa-solid fa-swords"></i> {{session.combats}} combats</span>
-      <span><i class="fa-solid fa-list"></i> {{session.events}} events</span>
-      {{#if session.recording}}
-        <span class="cgss-recording"><i class="fa-solid fa-circle"></i> Recording</span>
-      {{else}}
-        <span class="cgss-ended">Ended</span>
-      {{/if}}
-    </div>
-    <div class="cgss-header-actions">
-      <button type="button" data-cgss-action="editRoster"><i class="fa-solid fa-users"></i> Edit Roster</button>
-      {{#if session.recording}}
-        <button type="button" data-cgss-action="endSession"><i class="fa-solid fa-stop"></i> End Session</button>
-      {{else}}
-        <button type="button" data-cgss-action="exportCsv" {{#unless canExport}}disabled{{/unless}}>
-          <i class="fa-solid fa-file-csv"></i> Export CSV
-        </button>
-      {{/if}}
-    </div>
-  {{else}}
-    <p>No session data. Use "Start session" below the chat box to begin recording.</p>
-  {{/if}}
-</section>
-
-{{#if queue.length}}
-  <section class="cgss-queue">
-    <h3>Unresolved Attribution ({{queue.length}})</h3>
-    <table>
-      <thead>
-        <tr><th>Time</th><th>Target</th><th>Amount</th><th>Source</th></tr>
-      </thead>
-      <tbody>
-        {{#each queue}}
-          <tr>
-            <td>{{this.timeLabel}}</td>
-            <td>{{this.targetName}}</td>
-            <td>{{this.amount}}</td>
-            <td>
-              <select data-attribution-index="{{this.index}}">
-                <option value="">- assign -</option>
-                {{#each this.candidates}}
-                  <option value="{{this.uuid}}">{{this.name}}</option>
-                {{/each}}
-                <option value="manual">Manual adjustment</option>
-              </select>
-            </td>
-          </tr>
-        {{/each}}
-      </tbody>
-    </table>
+      independently of the stat tables in report-main.hbs.
+      ApplicationV2 requires each part to render exactly ONE root element, hence the
+      wrapper - the header and queue sections cannot be siblings at the top level. --}}
+<div class="cgss-top">
+  <section class="cgss-header">
+    {{#if hasSession}}
+      <h2>{{session.name}}</h2>
+      <div class="cgss-header-stats">
+        <span><i class="fa-solid fa-clock"></i> {{session.elapsedLabel}}</span>
+        <span><i class="fa-solid fa-swords"></i> {{session.combats}} combats</span>
+        <span><i class="fa-solid fa-list"></i> {{session.events}} events</span>
+        {{#if session.recording}}
+          <span class="cgss-recording"><i class="fa-solid fa-circle"></i> Recording</span>
+        {{else}}
+          <span class="cgss-ended">Ended</span>
+        {{/if}}
+      </div>
+      <div class="cgss-header-actions">
+        <button type="button" data-cgss-action="editRoster"><i class="fa-solid fa-users"></i> Edit Roster</button>
+        {{#if session.recording}}
+          <button type="button" data-cgss-action="endSession"><i class="fa-solid fa-stop"></i> End Session</button>
+        {{else}}
+          <button type="button" data-cgss-action="exportCsv" {{#unless canExport}}disabled{{/unless}}>
+            <i class="fa-solid fa-file-csv"></i> Export CSV
+          </button>
+        {{/if}}
+      </div>
+    {{else}}
+      <p>No session data. Use "Start session" below the chat box to begin recording.</p>
+    {{/if}}
   </section>
-{{/if}}
+
+  {{#if queue.length}}
+    <section class="cgss-queue">
+      <h3>Unresolved Attribution ({{queue.length}})</h3>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Target</th><th>Amount</th><th>Source</th></tr>
+        </thead>
+        <tbody>
+          {{#each queue}}
+            <tr>
+              <td>{{this.timeLabel}}</td>
+              <td>{{this.targetName}}</td>
+              <td>{{this.amount}}</td>
+              <td>
+                <select data-attribution-index="{{this.index}}">
+                  <option value="">- assign -</option>
+                  {{#each this.candidates}}
+                    <option value="{{this.uuid}}">{{this.name}}</option>
+                  {{/each}}
+                  <option value="manual">Manual adjustment</option>
+                </select>
+              </td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </section>
+  {{/if}}
+</div>
