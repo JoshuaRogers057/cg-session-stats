@@ -4,8 +4,8 @@ import { resolveAttributedActor } from "./actor-resolve.mjs";
 /**
  * Listens for the d20 roll hooks confirmed against the installed dnd5e 5.3.3 / midi-qol
  * 13.0.64 source. Notably: ability checks and saving throws have no "V2" hook in this
- * build (only skill/tool do), and initiative never passes a rolls array - the D20Roll has
- * to be captured from `dnd5e.preRollInitiative` before dnd5e discards its cached copy.
+ * build (only skill/tool do), and initiative has no dependable roll hook at all - it is
+ * captured from the flagged chat message instead (see registerHooks).
  */
 export class RollCapture {
   constructor(store) {
@@ -24,7 +24,17 @@ export class RollCapture {
     Hooks.on("dnd5e.rollAbilityCheck", (rolls, data) => this.#onD20(rolls, data.subject, ROLL_CATEGORY.CHECK));
     Hooks.on("dnd5e.rollSkillV2", (rolls, data) => this.#onD20(rolls, data.subject, ROLL_CATEGORY.CHECK));
     Hooks.on("dnd5e.rollToolCheckV2", (rolls, data) => this.#onD20(rolls, data.subject, ROLL_CATEGORY.CHECK));
-    Hooks.on("dnd5e.preRollInitiative", (actor, roll) => this.#onInitiative(actor, roll));
+
+    // Initiative has no usable dnd5e roll hook. Rolling from the combat tracker
+    // (rollAll / rollNPC / a single combatant) goes Combat5e#rollInitiative -> core
+    // Combat#rollInitiative -> Combatant5e#getInitiativeRoll, which never enters
+    // Actor5e#rollInitiative and therefore never fires dnd5e.preRollInitiative - that hook
+    // only covers the character-sheet path. Both paths do converge on core creating one
+    // chat message flagged "core.initiativeRoll" with the evaluated roll attached, so that
+    // message is the single capture point covering every path exactly once.
+    // Chat messages sync to the GM, so this is GM-only; running it on every client would
+    // relay the same roll several times.
+    if (game.user.isGM) Hooks.on("createChatMessage", (message) => this.#onInitiativeMessage(message));
   }
 
   #onAttack(workflow) {
@@ -54,8 +64,16 @@ export class RollCapture {
     this.#push(actor, category, faces, pass, tag);
   }
 
-  #onInitiative(actor, roll) {
-    if (!actor || !roll) return;
+  #onInitiativeMessage(message) {
+    if (message.getFlag("core", "initiativeRoll") !== true) return;
+    const roll = message.rolls?.[0];
+    if (!roll) return;
+
+    // Resolves the token's actor first, so unlinked NPC combatants credit the token actor
+    // rather than collapsing onto the base actor.
+    const actor = message.constructor.getSpeakerActor(message.speaker);
+    if (!actor) return;
+
     const faces = extractD20Faces(roll);
     if (!faces) return; // fixed-score initiative produces a BasicRoll with no d20 term
     this.#push(actor, ROLL_CATEGORY.INITIATIVE, faces, null);
