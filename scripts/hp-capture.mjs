@@ -92,7 +92,16 @@ export class HPCapture {
     const sourceDisposition = sourceToken?.document?.disposition ?? sourceToken?.disposition;
     const isSyntheticOverTime = workflow.item?.getFlag?.("midi-qol", "syntheticItem") === true;
 
+    // processDamageRoll builds an entry for *every* target with full damage calculated,
+    // then filters by wasHit when actually applying it (`if (doHits && !wasHit) continue`).
+    // So a missed attack still arrives here carrying the damage it would have done.
+    // Guarded on the activity having an attack at all: save-based effects like Fireball
+    // never populate the hit sets, so wasHit is false for them even on a clean hit.
+    const hasAttack = !!workflow.activity?.attack;
+
     for (const entry of damageList) {
+      if (hasAttack && !entry.wasHit) continue;
+
       const rawTargetActor = this.#resolveEntryActor(entry);
       if (!rawTargetActor) continue;
       const targetActor = resolveAttributedActor(rawTargetActor);
