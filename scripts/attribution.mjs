@@ -1,4 +1,4 @@
-import { EVENT_TYPE, MANUAL_SOURCE, ROLL_VERDICT, HOOK } from "./constants.mjs";
+import { EVENT_TYPE, MANUAL_SOURCE, NOT_TRACKED, ROLL_VERDICT, HOOK } from "./constants.mjs";
 
 /**
  * A thin view over SessionStore's events, not a separate list: an HP event is "in the
@@ -58,7 +58,12 @@ export class AttributionQueue {
     if (!event || event.e !== EVENT_TYPE.HP || !event.q) return;
 
     delete event.q;
-    event.s = actorUuid === MANUAL_SOURCE ? MANUAL_SOURCE : actorUuid;
+    // "Not tracked" voids the event rather than sourcing it: the GM is correcting an HP
+    // value, so it should count as neither damage taken nor healing received. Kept in the
+    // log (flagged) instead of deleted, so the event record stays a faithful history.
+    if (actorUuid === NOT_TRACKED) event.ig = 1;
+    else event.s = actorUuid === MANUAL_SOURCE ? MANUAL_SOURCE : actorUuid;
+
     this.store.persist();
     Hooks.callAll(HOOK.QUEUE_CHANGED);
   }

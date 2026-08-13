@@ -78,7 +78,12 @@
                   {{#each this.candidates}}
                     <option value="{{this.uuid}}">{{this.name}}</option>
                   {{/each}}
-                  <option value="manual">Manual adjustment</option>
+                  <option value="{{../manualSource}}" title="Really happened, but nobody to credit (a trap, falling, the environment). Still counts for the recipient.">
+                    Manual adjustment
+                  </option>
+                  <option value="{{../notTracked}}" title="A correction to an HP value rather than something that happened in play. Counts towards nothing at all.">
+                    Not tracked (correction)
+                  </option>
                 </select>
               </td>
             </tr>

@@ -48,7 +48,9 @@ Five tabs — **Attacks**, **Saves**, **Checks**, **Initiative**, and **Combat**
 
 Some events can't be classified automatically, and rather than interrupt play they collect in the report window for the GM to settle whenever convenient:
 
-- **Unresolved attribution** — HP changes with no identifiable source, such as traps, environmental damage, or manual adjustments. Damage *taken* is always accurate regardless; only damage *dealt* depends on resolving these.
+- **Unresolved attribution** — HP changes with no identifiable source, such as traps, environmental damage, or manual adjustments. Assign a character to credit them, or pick one of:
+  - **Manual adjustment** — it really happened but nobody gets credit (a trap, falling, the environment). Still counts as damage taken or healing received.
+  - **Not tracked (correction)** — you were fixing an HP value rather than recording something that happened in play. Counts towards nothing at all, not even damage taken or the downed count.
 - **Unresolved pass/fail** — dnd5e sets no target DC on ability, skill, or tool checks, so the system never reports whether they succeeded. Mark each **Pass**, **Fail**, or **N/A** to leave it out of pass-rate stats.
 
 The queues update live. The stat tables refresh only when you open the window or press refresh, so they never move under you mid-read.

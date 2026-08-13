@@ -1,4 +1,4 @@
-import { MODULE_ID, MODULE_TITLE, ROLL_CATEGORY, ROLL_TAG, HOOK } from "./constants.mjs";
+import { MODULE_ID, MODULE_TITLE, ROLL_CATEGORY, ROLL_TAG, HOOK, MANUAL_SOURCE, NOT_TRACKED } from "./constants.mjs";
 import { buildRollTable, buildInitiativeTable, buildCombatTable, sortTable } from "./aggregator.mjs";
 import { openEditRosterDialog } from "./roster-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
@@ -140,6 +140,10 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       // controls that settle them would be meaningless (and unauthorised) for a player.
       isGM: game.user.isGM,
       queue: game.user.isGM ? this.#queueContext() : [],
+      // Passed through rather than written into the template, so the sentinels cannot
+      // drift from the values attribution.mjs compares against.
+      manualSource: MANUAL_SOURCE,
+      notTracked: NOT_TRACKED,
       rollQueue: game.user.isGM ? this.#rollQueueContext() : [],
       activeTab: tab.id,
       tabs: TAB_DEFS.map((t) => ({ id: t.id, label: t.label, active: t.id === tab.id })),

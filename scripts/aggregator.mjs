@@ -91,6 +91,10 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
 
     if (e.e !== EVENT_TYPE.HP) continue;
 
+    // Voided by the GM as a bookkeeping correction: contributes to nothing at all, not
+    // even damage taken or the downed count.
+    if (e.ig) continue;
+
     // Damage taken / healing received / downed always attribute to the target, regardless
     // of whether the source ever got resolved - "damage-taken is always accurate."
     const targetIdentity = data.actors[e.g];

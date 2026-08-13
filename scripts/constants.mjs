@@ -44,7 +44,11 @@ export const HOOK = {
   STATE_CHANGED: "cg-session-stats.stateChanged"
 };
 
+/** Real damage or healing with nobody to credit - still counts for the recipient. */
 export const MANUAL_SOURCE = "manual";
+
+/** A bookkeeping correction that never happened in fiction - excluded from every stat. */
+export const NOT_TRACKED = "not-tracked";
 
 export function debugLog(...args) {
   if (game.settings.get(MODULE_ID, SETTING.DEBUG)) console.log(`${MODULE_ID} |`, ...args);
