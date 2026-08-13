@@ -119,6 +119,22 @@
   font-style: italic;
 }
 
+/* Separates the PC block from the NPC block rather than interleaving them by score. */
+.cgss-table .cgss-group-divider td {
+  padding: 6px 6px 2px;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+  border-bottom: 1px solid var(--color-border-light-2, #782e22);
+}
+
+.cgss-table .cgss-totals td {
+  padding-top: 6px;
+  border-top: 2px solid var(--color-border-light-2, #782e22);
+  font-weight: bold;
+}
+
 .cgss-table td[data-danger="true"] {
   color: var(--color-level-error, #a92222);
   font-weight: bold;

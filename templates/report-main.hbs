@@ -28,16 +28,29 @@
     </thead>
     <tbody>
       {{#each rows}}
-        <tr class="{{#unless this.isPC}}cgss-npc-row{{/unless}}">
-          {{#each ../columns}}
-            <td data-danger="{{#if (and (eq this.key "nat1") ../dangerNat1)}}true{{/if}}">
-              {{lookup ../cells this.key}}
-            </td>
-          {{/each}}
-        </tr>
+        {{#if this.divider}}
+          <tr class="cgss-group-divider"><td colspan="{{../columns.length}}">{{this.label}}</td></tr>
+        {{else}}
+          <tr class="{{#unless this.isPC}}cgss-npc-row{{/unless}}">
+            {{#each ../columns}}
+              <td data-danger="{{#if (and (eq this.key "nat1") ../dangerNat1)}}true{{/if}}">
+                {{lookup ../cells this.key}}
+              </td>
+            {{/each}}
+          </tr>
+        {{/if}}
       {{else}}
         <tr><td colspan="{{columns.length}}">No data yet.</td></tr>
       {{/each}}
     </tbody>
+    {{#if totals}}
+      <tfoot>
+        <tr class="cgss-totals">
+          {{#each columns}}
+            <td>{{lookup ../totals.cells this.key}}</td>
+          {{/each}}
+        </tr>
+      </tfoot>
+    {{/if}}
   </table>
 </div>

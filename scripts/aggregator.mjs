@@ -149,6 +149,35 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
   return sortTable(rows, "dmgDealt", "desc");
 }
 
+/**
+ * Party-wide totals across the roster PCs only, for the Combat tab footer. NPC rows are
+ * excluded whether or not they're currently shown - "the party" means the PCs.
+ *
+ * The two "biggest single blow" columns take the maximum rather than the sum: the party's
+ * best hit is its best member's hit, not the sum of everyone's bests.
+ */
+export function buildPartyTotals(rows) {
+  const pcs = rows.filter((r) => r.isPC);
+  if (!pcs.length) return null;
+
+  const sum = (key) => pcs.reduce((total, r) => total + (r[key] ?? 0), 0);
+  const max = (key) => pcs.reduce((best, r) => Math.max(best, r[key] ?? 0), 0);
+
+  return {
+    name: "Party Total",
+    dmgDealt: sum("dmgDealt"),
+    maxDealt: max("maxDealt"),
+    dmgTaken: sum("dmgTaken"),
+    maxTaken: max("maxTaken"),
+    healGiven: sum("healGiven"),
+    healRecv: sum("healRecv"),
+    thpGiven: sum("thpGiven"),
+    downed: sum("downed"),
+    kills: sum("kills"),
+    avoided: sum("avoided")
+  };
+}
+
 export function sortTable(rows, key, dir = "desc") {
   const sign = dir === "desc" ? -1 : 1;
   return [...rows].sort((a, b) => {

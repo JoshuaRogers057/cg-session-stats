@@ -42,7 +42,9 @@ A session is a manually bounded recording window. Starting one refuses to discar
 
 ### The report window
 
-Five tabs — **Attacks**, **Saves**, **Checks**, **Initiative**, and **Combat**. The four roll tabs show roll counts, mean kept die, mean of all dice, natural 20s and 1s, and pass/fail totals; Combat shows the HP and kill columns. Any column header re-sorts. An **NPCs** checkbox adds aggregated monster rows, and the Saves tab can exclude death and concentration saves from its pass rate.
+Five tabs — **Attacks**, **Saves**, **Checks**, **Initiative**, and **Combat**. The four roll tabs show roll counts, mean kept die, mean of all dice, natural 20s and 1s, and pass/fail totals; Combat shows the HP and kill columns. Any column header re-sorts. The Saves tab can exclude death and concentration saves from its pass rate.
+
+An **NPCs** checkbox adds aggregated monster rows. PCs and NPCs are listed as separate blocks rather than interleaved by score, so the party is always read as a group. The Combat tab also carries a **Party Total** row covering the roster PCs only — sums for the running totals, but the *best* single blow rather than a sum for the two Max columns.
 
 ### Resolving the queues
 

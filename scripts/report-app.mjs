@@ -1,5 +1,5 @@
 import { MODULE_ID, MODULE_TITLE, ROLL_CATEGORY, ROLL_TAG, HOOK, MANUAL_SOURCE, NOT_TRACKED } from "./constants.mjs";
-import { buildRollTable, buildInitiativeTable, buildCombatTable, sortTable } from "./aggregator.mjs";
+import { buildRollTable, buildInitiativeTable, buildCombatTable, buildPartyTotals, sortTable } from "./aggregator.mjs";
 import { openEditRosterDialog } from "./roster-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
 
@@ -118,11 +118,34 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const tab = TAB_DEFS.find((t) => t.id === this.#activeTab) ?? TAB_DEFS[0];
     const rawRows = this.#tables[tab.id] ?? [];
 
-    const rows = rawRows.map((r) => ({
+    const toDisplayRow = (r) => ({
       isPC: r.isPC,
       dangerNat1: (r.nat1 ?? 0) >= 3,
       cells: Object.fromEntries(tab.columns.map((c) => [c.key, formatCell(c.key, r[c.key])]))
-    }));
+    });
+
+    // PCs and NPCs are kept apart rather than interleaved by score. Filtering preserves the
+    // active sort order within each group, so column sorting still works as expected.
+    const pcRows = rawRows.filter((r) => r.isPC).map(toDisplayRow);
+    const npcRows = rawRows.filter((r) => !r.isPC).map(toDisplayRow);
+
+    const rows = [...pcRows];
+    if (npcRows.length) {
+      rows.push({ divider: true, label: "NPCs" });
+      rows.push(...npcRows);
+    }
+
+    // Party totals are Combat-tab only; summing roll means across characters would be
+    // meaningless, and a mean-of-means is not the party's true mean.
+    let totals = null;
+    if (tab.kind === "combat") {
+      const partyTotals = buildPartyTotals(rawRows);
+      if (partyTotals) {
+        totals = {
+          cells: Object.fromEntries(tab.columns.map((c) => [c.key, formatCell(c.key, partyTotals[c.key])]))
+        };
+      }
+    }
 
     return {
       hasSession: !!data,
@@ -151,7 +174,8 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       excludeSpecialSaves: this.#excludeSpecialSaves,
       showSpecialSavesToggle: !!tab.hasSpecialSavesToggle,
       columns: tab.columns,
-      rows
+      rows,
+      totals
     };
   }
 
