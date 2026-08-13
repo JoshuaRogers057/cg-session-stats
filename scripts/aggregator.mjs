@@ -99,6 +99,9 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
       g.dmgTaken += e.dmg ?? 0;
       g.healRecv += e.heal ?? 0;
       if (e.dn) g.downed += 1;
+      // One event is one blow against one creature, so an AoE hitting three targets is
+      // three separate blows rather than a single large one.
+      g.maxTaken = Math.max(g.maxTaken, e.dmg ?? 0);
     }
 
     // Damage dealt / healing given / temp HP given attribute to the source, when resolved.
@@ -108,7 +111,12 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
       const sourceIdentity = data.actors[e.s];
       if (sourceIdentity && !(sourceIdentity.t === "npc" && !showNPCs)) {
         const g = getCombatGroup(groups, e.s, sourceIdentity);
-        if (!e.pvp) g.dmgDealt += e.dmg ?? 0;
+        if (!e.pvp) {
+          g.dmgDealt += e.dmg ?? 0;
+          // Follows damage-dealt: friendly fire is excluded, so a big hit on an ally
+          // doesn't become someone's best blow of the night.
+          g.maxDealt = Math.max(g.maxDealt, e.dmg ?? 0);
+        }
         g.healGiven += e.heal ?? 0;
         g.thpGiven += e.thp ?? 0;
         // The same `dn` flag that counts as "downed" for the victim counts as a kill for
@@ -123,7 +131,9 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
     name: g.name,
     isPC: g.isPC,
     dmgDealt: g.dmgDealt,
+    maxDealt: g.maxDealt,
     dmgTaken: g.dmgTaken,
+    maxTaken: g.maxTaken,
     healGiven: g.healGiven,
     healRecv: g.healRecv,
     thpGiven: g.thpGiven,
@@ -162,7 +172,9 @@ function getCombatGroup(groups, uuid, identity) {
       name: identity.n,
       isPC: identity.t === "pc",
       dmgDealt: 0,
+      maxDealt: 0,
       dmgTaken: 0,
+      maxTaken: 0,
       healGiven: 0,
       healRecv: 0,
       thpGiven: 0,

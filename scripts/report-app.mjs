@@ -26,7 +26,9 @@ const INITIATIVE_COLUMNS = [
 const COMBAT_COLUMNS = [
   { key: "name", label: "Character" },
   { key: "dmgDealt", label: "Dmg Dealt" },
+  { key: "maxDealt", label: "Max Dealt" },
   { key: "dmgTaken", label: "Dmg Taken" },
+  { key: "maxTaken", label: "Max Taken" },
   { key: "healGiven", label: "Heal Given" },
   { key: "healRecv", label: "Heal Received" },
   { key: "thpGiven", label: "Temp HP Given" },

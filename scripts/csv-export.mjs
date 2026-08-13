@@ -55,10 +55,13 @@ export function buildSessionCSV(store, attribution) {
   // original column order stays stable for anything already parsing this export.
   csv += csvRow([
     "character", "dmg_dealt", "dmg_taken", "heal_given", "heal_recv", "temp_hp_given", "downed",
-    "kills", "attacks_avoided"
+    "kills", "attacks_avoided", "max_dealt", "max_taken"
   ]);
   for (const r of pcsFirst(buildCombatTable(data, { showNPCs: true }))) {
-    csv += csvRow([r.name, r.dmgDealt, r.dmgTaken, r.healGiven, r.healRecv, r.thpGiven, r.downed, r.kills, r.avoided]);
+    csv += csvRow([
+      r.name, r.dmgDealt, r.dmgTaken, r.healGiven, r.healRecv, r.thpGiven, r.downed,
+      r.kills, r.avoided, r.maxDealt, r.maxTaken
+    ]);
   }
 
   return csv;
