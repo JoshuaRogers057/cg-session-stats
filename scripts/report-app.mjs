@@ -101,7 +101,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
   #tables = {};
   #hasComputed = false;
   #sortState = {};
-  #queueHookId = null;
+  #hookIds = [];
   #tickInterval = null;
 
   constructor(store, attribution, options = {}) {
@@ -213,7 +213,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
   #bindTop() {
     const root = this.element;
     root.querySelector('[data-cgss-action="editRoster"]')?.addEventListener("click", () => openEditRosterDialog(this.#store));
-    root.querySelector('[data-cgss-action="endSession"]')?.addEventListener("click", () => this.#store.endSession());
+    root.querySelector('[data-cgss-action="endSession"]')?.addEventListener("click", () => this.#confirmEndSession());
     root.querySelector('[data-cgss-action="exportCsv"]')?.addEventListener("click", () => exportSessionCSV(this.#store, this.#attribution));
     root.querySelectorAll("select[data-attribution-index]").forEach((sel) => {
       sel.addEventListener("change", () => {
@@ -226,6 +226,23 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
         this.#attribution.resolveRoll(Number(btn.dataset.index), btn.dataset.verdict);
       });
     });
+  }
+
+  /**
+   * Ending is one-way - there is no resume - so it asks first, and states what is being
+   * stopped rather than a bare "are you sure". DialogV2.confirm defaults to No.
+   */
+  async #confirmEndSession() {
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: game.i18n.localize("CGSS.EndSession.Title"), icon: "fa-solid fa-circle-stop" },
+      content: `<p>${game.i18n.format("CGSS.EndSession.Body", {
+        elapsed: formatDuration(this.#store.elapsedSeconds),
+        events: this.#store.eventCount
+      })}</p>`,
+      yes: { label: game.i18n.localize("CGSS.EndSession.Confirm"), icon: "fa-solid fa-circle-stop" },
+      rejectClose: false
+    });
+    if (confirmed) this.#store.endSession();
   }
 
   #bindMain() {
@@ -260,15 +277,22 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   async _onFirstRender(context, options) {
     await super._onFirstRender(context, options);
-    this.#queueHookId = Hooks.on(HOOK.QUEUE_CHANGED, () => this.rendered && this.render({ parts: ["top"] }));
+
+    const refreshTop = () => this.rendered && this.render({ parts: ["top"] });
+    // Only the header and queues follow live updates. The stat tables deliberately do not,
+    // so the GM is never re-sorted mid-read; they refresh on open or via the control.
+    for (const hook of [HOOK.QUEUE_CHANGED, HOOK.STATE_CHANGED]) {
+      this.#hookIds.push([hook, Hooks.on(hook, refreshTop)]);
+    }
     this.#tickInterval = setInterval(() => {
-      if (this.rendered && this.#store.isRecording) this.render({ parts: ["top"] });
+      if (this.rendered && this.#store.isRecording) refreshTop();
     }, 15000);
   }
 
   async _onClose(options) {
     await super._onClose(options);
-    if (this.#queueHookId !== null) Hooks.off(HOOK.QUEUE_CHANGED, this.#queueHookId);
+    for (const [hook, id] of this.#hookIds) Hooks.off(hook, id);
+    this.#hookIds = [];
     if (this.#tickInterval) clearInterval(this.#tickInterval);
   }
 }
