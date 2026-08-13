@@ -31,19 +31,30 @@ export class AttributionQueue {
     return this.entries.length;
   }
 
-  /** Roster PCs + NPCs seen in combat this session, for the resolve dropdown. */
+  /**
+   * Roster PCs and NPCs seen in combat this session, grouped for the resolve dropdown.
+   *
+   * NPCs are collapsed by name to mirror how the report aggregates them: six unlinked
+   * goblins are one "Goblin" row, so six dropdown entries would just be six ways to pick
+   * the same row. Any one of their UUIDs lands in that row, so the first is kept.
+   * PCs stay individual - they are their own rows even if two share a name.
+   */
   get candidateSources() {
     const data = this.store.data;
-    if (!data) return [];
-    const out = [];
-    for (const uuid of data.meta.roster) {
-      const name = data.actors[uuid]?.n ?? fromUuidSync(uuid)?.name ?? uuid;
-      out.push({ uuid, name });
-    }
+    if (!data) return { pcs: [], npcs: [] };
+
+    const pcs = data.meta.roster.map((uuid) => ({
+      uuid,
+      name: data.actors[uuid]?.n ?? fromUuidSync(uuid)?.name ?? uuid
+    }));
+
+    const byName = new Map();
     for (const [uuid, name] of Object.entries(data.meta.npcSeen)) {
-      out.push({ uuid, name });
+      if (!byName.has(name)) byName.set(name, { uuid, name });
     }
-    return out;
+    const npcs = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang));
+
+    return { pcs, npcs };
   }
 
   /**
@@ -62,7 +73,13 @@ export class AttributionQueue {
     // value, so it should count as neither damage taken nor healing received. Kept in the
     // log (flagged) instead of deleted, so the event record stays a faithful history.
     if (actorUuid === NOT_TRACKED) event.ig = 1;
-    else event.s = actorUuid === MANUAL_SOURCE ? MANUAL_SOURCE : actorUuid;
+    else if (actorUuid === MANUAL_SOURCE) event.s = MANUAL_SOURCE;
+    else {
+      // An NPC picked from the dropdown may only exist in meta.npcSeen so far; register it
+      // before crediting, or aggregation finds no identity for it and credits nobody.
+      this.store.ensureActorTracked(actorUuid);
+      event.s = actorUuid;
+    }
 
     this.store.persist();
     Hooks.callAll(HOOK.QUEUE_CHANGED);

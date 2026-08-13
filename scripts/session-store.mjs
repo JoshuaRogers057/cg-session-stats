@@ -191,6 +191,17 @@ export class SessionStore {
     return false;
   }
 
+  /**
+   * Registers an actor's display entry so aggregation can find it. Needed when resolving
+   * an attribution to an NPC that appeared in a combat but never generated an event of its
+   * own: it lives in meta.npcSeen but not in `actors`, and the aggregator looks it up there
+   * - so without this the resolved damage would be credited to nobody.
+   */
+  ensureActorTracked(uuid) {
+    if (!game.user.isGM || !this.#data) return false;
+    return !!this.#resolveActor(uuid);
+  }
+
   /** Resolves an actor for tracking purposes: PCs must be on the roster, NPCs are always eligible. */
   #resolveActor(uuid) {
     if (!uuid) return null;

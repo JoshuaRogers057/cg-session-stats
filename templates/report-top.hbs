@@ -75,9 +75,20 @@
               <td>
                 <select data-attribution-index="{{this.index}}">
                   <option value="">- assign -</option>
-                  {{#each this.candidates}}
-                    <option value="{{this.uuid}}">{{this.name}}</option>
-                  {{/each}}
+                  {{#if this.candidates.pcs.length}}
+                    <optgroup label="Party">
+                      {{#each this.candidates.pcs}}
+                        <option value="{{this.uuid}}">{{this.name}}</option>
+                      {{/each}}
+                    </optgroup>
+                  {{/if}}
+                  {{#if this.candidates.npcs.length}}
+                    <optgroup label="NPCs">
+                      {{#each this.candidates.npcs}}
+                        <option value="{{this.uuid}}">{{this.name}}</option>
+                      {{/each}}
+                    </optgroup>
+                  {{/if}}
                   <option value="{{../manualSource}}" title="Really happened, but nobody to credit (a trap, falling, the environment). Still counts for the recipient.">
                     Manual adjustment
                   </option>
