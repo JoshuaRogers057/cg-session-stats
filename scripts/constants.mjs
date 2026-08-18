@@ -27,6 +27,7 @@ export const SETTING = {
 
 export const SOCKET_ACTION = {
   RECORD_EVENT: "recordEvent",
+  AMEND_ROLL: "amendRoll",
   MARK_HIT_DIE: "markHitDie"
 };
 

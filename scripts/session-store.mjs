@@ -3,6 +3,10 @@ import { relayRecordEvent } from "./socket.mjs";
 
 const FLUSH_DEBOUNCE_MS = 3000;
 
+// Grace period for an amendment whose roll is still crossing the network from the client
+// that rolled it.
+const AMEND_RETRY_MS = 2000;
+
 function freshSessionData(name, roster) {
   const now = Math.floor(Date.now() / 1000);
   return {
@@ -173,20 +177,53 @@ export class SessionStore {
   }
 
   /**
-   * Has an HP event already been recorded against this target in the last `windowSeconds`?
-   * Used by the raw-update fallback in hp-capture.mjs to avoid double-recording a change
-   * Midi already accounted for. Deliberately matches on target and recency only, not on
-   * amounts: the Midi path folds temp-HP absorption into its damage figure while a raw HP
-   * diff cannot see it, so the two legitimately disagree on magnitude for the same hit.
+   * Applies an amendment, retrying once shortly after if the roll it refers to has not
+   * arrived yet: the roll is relayed from whichever client physically rolled it, while the
+   * amendment comes from the client running the workflow, so they can land out of order.
+   * If it still finds nothing the amendment is dropped and the roll simply stays in the
+   * pass/fail queue for the GM - degraded, not wrong.
    */
-  hasRecentHPEvent(targetUuid, windowSeconds = 6) {
-    if (!this.#data) return false;
+  queueAmendment(amendment) {
+    if (!game.user.isGM) return;
+    if (this.amendRoll(amendment)) return;
+    setTimeout(() => {
+      if (!this.amendRoll(amendment)) debugLog("Amendment found no matching roll", amendment);
+    }, AMEND_RETRY_MS);
+  }
+
+  /**
+   * Amends the most recent matching roll instead of recording a new one.
+   *
+   * Several sources describe the same physical roll. dnd5e fires `rollSavingThrow` from
+   * inside both death saves and concentration saves, and Midi determines pass/fail only
+   * after the roll has already been reported. Recording each source separately would
+   * double-count; amending lets a later, better-informed source fill in what the first
+   * could not know.
+   *
+   * Matches on actor plus the exact dice faces, newest first, within a short window.
+   * Returns true if an event was amended.
+   */
+  amendRoll({ actorUuid, faces, pass, tag }, windowSeconds = 20) {
+    if (!game.user.isGM || !this.#data) return false;
+
     const now = this.#elapsedNow();
     const events = this.#data.events;
+    const wanted = JSON.stringify(faces);
+
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
       if (now - e.t > windowSeconds) break;
-      if (e.e === EVENT_TYPE.HP && e.g === targetUuid) return true;
+      if (e.e !== EVENT_TYPE.ROLL || e.a !== actorUuid) continue;
+      if (JSON.stringify(e.d) !== wanted) continue;
+
+      if (tag !== undefined) e.x = tag;
+      if (pass !== undefined && pass !== null) {
+        e.p = pass;
+        delete e.pq; // settled by the system, so it no longer needs the GM
+        Hooks.callAll(HOOK.QUEUE_CHANGED);
+      }
+      this.#flush();
+      return true;
     }
     return false;
   }

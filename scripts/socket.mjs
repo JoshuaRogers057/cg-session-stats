@@ -18,6 +18,7 @@ export function registerSocket() {
     return false;
   }
   socket.register(SOCKET_ACTION.RECORD_EVENT, _gmRecordEvent);
+  socket.register(SOCKET_ACTION.AMEND_ROLL, _gmAmendRoll);
   socket.register(SOCKET_ACTION.MARK_HIT_DIE, _gmMarkHitDie);
   return true;
 }
@@ -37,6 +38,16 @@ export async function relayRecordEvent(eventData) {
 }
 
 /**
+ * Amendments originate wherever the extra information appears - Midi's save verdict on the
+ * client running the workflow, death/concentration tags on the roller's client - which is
+ * often not the GM. The GM holds the only copy of the data, so they must be relayed.
+ */
+export async function relayAmendRoll(amendment) {
+  if (!socket) return;
+  await socket.executeAsGM(SOCKET_ACTION.AMEND_ROLL, amendment);
+}
+
+/**
  * `dnd5e.rollHitDieV2` only fires on the client that invoked the roll (it is not part of
  * core document sync, unlike the `updateActor` it triggers). The GM's own HPCapture needs
  * to know about it regardless of who rolled, so it can suppress the resulting HP update
@@ -53,6 +64,11 @@ function _gmRecordEvent(eventData) {
   const api = game.modules.get(MODULE_ID).api;
   if (!api?.store) return debugLog("Dropped event, store not ready", eventData);
   api.store.ingestEvent(eventData);
+}
+
+function _gmAmendRoll(amendment) {
+  const api = game.modules.get(MODULE_ID).api;
+  api?.store?.queueAmendment(amendment);
 }
 
 function _gmMarkHitDie(actorUuid) {

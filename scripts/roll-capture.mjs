@@ -1,11 +1,17 @@
 import { EVENT_TYPE, ROLL_CATEGORY, ROLL_TAG } from "./constants.mjs";
 import { resolveAttributedActor } from "./actor-resolve.mjs";
+import { relayAmendRoll } from "./socket.mjs";
 
 /**
  * Listens for the d20 roll hooks confirmed against the installed dnd5e 5.3.3 / midi-qol
  * 13.0.64 source. Notably: ability checks and saving throws have no "V2" hook in this
  * build (only skill/tool do), and initiative has no dependable roll hook at all - it is
  * captured from the flagged chat message instead (see registerHooks).
+ *
+ * Death saves and concentration saves are NOT recorded separately. dnd5e implements both
+ * by calling Actor5e#rollSavingThrow internally, so `dnd5e.rollSavingThrow` has already
+ * fired for them by the time their own hooks run; recording both would count one roll
+ * twice. Their hooks amend the existing record with a tag instead.
  */
 export class RollCapture {
   constructor(store) {
@@ -14,16 +20,18 @@ export class RollCapture {
 
   registerHooks() {
     Hooks.on("midi-qol.AttackRollComplete", (workflow) => this.#onAttack(workflow));
+
     Hooks.on("dnd5e.rollSavingThrow", (rolls, data) => this.#onD20(rolls, data.subject, ROLL_CATEGORY.SAVE));
-    Hooks.on("dnd5e.rollConcentrationV2", (rolls, data) =>
-      this.#onD20(rolls, data.subject, ROLL_CATEGORY.SAVE, ROLL_TAG.CONCENTRATION)
-    );
-    Hooks.on("dnd5e.postRollDeathSave", (rolls, data) =>
-      this.#onD20(rolls, data.subject, ROLL_CATEGORY.SAVE, ROLL_TAG.DEATH_SAVE)
-    );
     Hooks.on("dnd5e.rollAbilityCheck", (rolls, data) => this.#onD20(rolls, data.subject, ROLL_CATEGORY.CHECK));
     Hooks.on("dnd5e.rollSkillV2", (rolls, data) => this.#onD20(rolls, data.subject, ROLL_CATEGORY.CHECK));
     Hooks.on("dnd5e.rollToolCheckV2", (rolls, data) => this.#onD20(rolls, data.subject, ROLL_CATEGORY.CHECK));
+
+    // Tag-only: the roll itself was already captured by dnd5e.rollSavingThrow above.
+    Hooks.on("dnd5e.postRollDeathSave", (rolls, data) => this.#tag(rolls, data.subject, ROLL_TAG.DEATH_SAVE));
+    Hooks.on("dnd5e.rollConcentrationV2", (rolls, data) => this.#tag(rolls, data.subject, ROLL_TAG.CONCENTRATION));
+
+    // Midi decides pass/fail itself and only afterwards; see #onSavesChecked.
+    Hooks.on("midi-qol.postCheckSaves", (workflow) => this.#onSavesChecked(workflow));
 
     // Initiative has no usable dnd5e roll hook. Rolling from the combat tracker
     // (rollAll / rollNPC / a single combatant) goes Combat5e#rollInitiative -> core
@@ -74,10 +82,56 @@ export class RollCapture {
     const faces = extractD20Faces(roll);
     if (!faces) return;
 
+    // Only meaningful when a DC actually reached the roll. Midi frequently withholds it
+    // from the roller (see #onSavesChecked), in which case pass/fail arrives by amendment.
     const hasTarget = Number.isFinite(roll.options?.target);
     const pass = hasTarget ? roll.isSuccess ?? null : null;
 
     this.#push(actor, category, faces, pass, tag);
+  }
+
+  /** Marks an already-recorded roll as a death save or concentration save. */
+  #tag(rolls, subject, tag) {
+    const actor = subject?.actor ?? subject;
+    const roll = rolls?.[0];
+    if (!actor || !roll) return;
+    const faces = extractD20Faces(roll);
+    if (!faces) return;
+
+    this.#amend({ actorUuid: resolveAttributedActor(actor).uuid, faces: faces.faces, tag });
+  }
+
+  /**
+   * Supplies pass/fail for Midi-driven saves.
+   *
+   * Midi only forwards the DC to the roll when it is allowed to show it: `showTargetDC`
+   * depends on dnd5e's `challengeVisibility` setting, so an NPC forcing a save on a
+   * player-owned target hides the DC from the player rolling it. `roll.options.target`
+   * then never gets set and dnd5e's `isSuccess` reports false for a pass and a fail alike.
+   * Midi does not rely on that field either - it compares the total against its own DC -
+   * so its verdict is read here instead and amended onto the roll already recorded.
+   */
+  #onSavesChecked(workflow) {
+    const details = workflow?.targetSaveDetails;
+    if (!details) return;
+
+    const savedUuids = new Set([...(workflow.saves ?? [])].map(tokenUuid).filter(Boolean));
+
+    for (const [uuid, detail] of Object.entries(details)) {
+      const roll = detail?.saveRoll;
+      if (!roll) continue;
+      const faces = extractD20Faces(roll);
+      if (!faces) continue;
+
+      const actor = fromUuidSync(detail.actorUuid ?? "") ?? fromUuidSync(uuid)?.actor;
+      if (!actor) continue;
+
+      this.#amend({
+        actorUuid: resolveAttributedActor(actor).uuid,
+        faces: faces.faces,
+        pass: savedUuids.has(uuid)
+      });
+    }
   }
 
   #onInitiativeMessage(message) {
@@ -105,6 +159,11 @@ export class RollCapture {
       pass,
       ...(tag ? { tag } : {})
     });
+  }
+
+  #amend(amendment) {
+    if (game.user.isGM) this.store.queueAmendment(amendment);
+    else relayAmendRoll(amendment).catch((err) => console.error("cg-session-stats | Failed to relay amendment", err));
   }
 }
 

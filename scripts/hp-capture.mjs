@@ -2,36 +2,26 @@ import { EVENT_TYPE, HOOK, debugLog } from "./constants.mjs";
 import { resolveAttributedActor } from "./actor-resolve.mjs";
 import { relayMarkHitDie } from "./socket.mjs";
 
-// How long the raw-update fallback defers before treating an HP change as unattributed.
-// This is a settling delay, not a correctness guarantee - it gives the Midi-derived event
-// (which may be arriving over the socket from another client) time to reach the store
-// before hasRecentHPEvent() is consulted. The store check is what actually prevents
-// double-recording; see #recordFallback.
-const DEDUPE_WINDOW_MS = 1500;
-
-// How long a Midi "expected post-application HP" marker stays valid. Only needs to cover
-// the gap between midi-qol.RollComplete and the fire-and-forget actor.update landing.
-const MIDI_EXPECTATION_TTL_MS = 10000;
-
 /**
- * Two independent capture paths, by necessity:
+ * HP is captured from the actual `updateActor` that changes it, GM-side only.
  *
- * - `midi-qol.RollComplete` only fires on the client that ran the workflow (the acting
- *   player's client), carrying full attribution (source actor, per-target effective
- *   damage/heal/temp HP). Runs on every client; forwards through store.recordEvent(),
- *   which relays to the GM.
- * - The raw `updateActor` fallback catches HP changes Midi never wrapped in a workflow
- *   (GM manual application, macros, traps). `updateActor` is core document sync, so it
- *   fires identically and independently on every client, including the GM's - so this
- *   path runs GM-side only, straight into the store, with no relay needed. Running it on
- *   every client would double-relay the same broadcasted update.
+ * This is deliberately the single source. Midi's `workflow.damageList` describes what it
+ * intends to apply, not what happened: it is rebuilt per damage-selector (so an activity
+ * with a secondary damage roll leaves only those entries behind), it is empty when nothing
+ * was targeted, it contains entries for attacks that missed, and several application
+ * routes never populate it at all. Reading it produced phantom damage on misses and lost
+ * healing outright.
+ *
+ * Every Midi-driven application - auto-apply, the GM damage card, the damage tray - instead
+ * calls `actor.update()` with `options.midi.sourceActorUuid` naming the attacker or healer,
+ * and Midi resolves damage GM-side, so the GM's client always sees both the real HP change
+ * and its source. Anything arriving without that (a token HP-bar edit, a trap, a macro
+ * using the legacy apply path) genuinely has no source and goes to the attribution queue.
  */
 export class HPCapture {
   #store;
   #lastKnownHP = new Map(); // actorUuid -> { hp, temp }, GM-side only, reset each session
-  #pendingFallback = new Map(); // actorUuid -> timeoutId, GM-side only
   #ignoreNextUpdate = new Set(); // actorUuid, GM-side only (hit-die suppression)
-  #midiExpected = new Map(); // actorUuid -> { hp, temp, at }, GM-side only
 
   constructor(store) {
     this.#store = store;
@@ -39,7 +29,6 @@ export class HPCapture {
   }
 
   registerHooks() {
-    Hooks.on("midi-qol.RollComplete", (workflow) => this.#onRollComplete(workflow));
     Hooks.on("dnd5e.rollHitDieV2", (rolls, { subject }) => this.#onRollHitDie(subject));
     if (game.user.isGM) {
       Hooks.on("preUpdateActor", (actor, changes) => this.#seedBaselineGM(actor, changes));
@@ -54,17 +43,19 @@ export class HPCapture {
 
   #resetGmState() {
     this.#lastKnownHP.clear();
-    for (const id of this.#pendingFallback.values()) clearTimeout(id);
-    this.#pendingFallback.clear();
     this.#ignoreNextUpdate.clear();
-    this.#midiExpected.clear();
+  }
+
+  #onRollHitDie(actor) {
+    if (!actor) return;
+    if (game.user.isGM) this.markHitDie(actor.uuid);
+    else relayMarkHitDie(actor.uuid).catch((err) => console.error("cg-session-stats | Failed to relay hit die marker", err));
   }
 
   /**
    * Captures an actor's HP *before* an update lands. Without this, the first HP change an
    * actor sees in a session has no prior value to diff against and gets silently swallowed
-   * as baseline-seeding - which meant the first manual adjustment to any given token never
-   * reached the attribution queue.
+   * as baseline-seeding.
    */
   #seedBaselineGM(actor, changes) {
     if (this.#lastKnownHP.has(actor.uuid)) return;
@@ -74,110 +65,6 @@ export class HPCapture {
       temp: actor.system.attributes.hp.temp ?? 0
     });
   }
-
-  #onRollHitDie(actor) {
-    if (!actor) return;
-    if (game.user.isGM) this.markHitDie(actor.uuid);
-    else relayMarkHitDie(actor.uuid).catch((err) => console.error("cg-session-stats | Failed to relay hit die marker", err));
-  }
-
-  // --- Primary: Midi-QOL workflow damage -----------------------------------
-
-  #onRollComplete(workflow) {
-    const damageList = workflow.damageList;
-    if (!Array.isArray(damageList) || !damageList.length) return;
-
-    const sourceActor = workflow.actor ? resolveAttributedActor(workflow.actor) : null;
-    const sourceToken = workflow.token ?? null;
-    const sourceDisposition = sourceToken?.document?.disposition ?? sourceToken?.disposition;
-    const isSyntheticOverTime = workflow.item?.getFlag?.("midi-qol", "syntheticItem") === true;
-
-    // processDamageRoll builds an entry for *every* target with full damage calculated,
-    // then filters by wasHit when actually applying it (`if (doHits && !wasHit) continue`).
-    // So a missed attack still arrives here carrying the damage it would have done.
-    // Guarded on the activity having an attack at all: save-based effects like Fireball
-    // never populate the hit sets, so wasHit is false for them even on a clean hit.
-    const hasAttack = !!workflow.activity?.attack;
-
-    for (const entry of damageList) {
-      if (hasAttack && !entry.wasHit) continue;
-
-      const rawTargetActor = this.#resolveEntryActor(entry);
-      if (!rawTargetActor) continue;
-      const targetActor = resolveAttributedActor(rawTargetActor);
-
-      // Dedup against the GM's own fallback listener, which sees the same HP change as a
-      // raw update. Ordering varies (Midi's actor.update is fire-and-forget unless
-      // waitForDamageApplication is on), so both directions are covered: cancel a fallback
-      // already pending, and record the exact HP this target is expected to land on so an
-      // update arriving later can be matched and skipped.
-      if (game.user.isGM) {
-        this.#clearPendingFallback(rawTargetActor.uuid);
-        this.#clearPendingFallback(targetActor.uuid);
-        this.#midiExpected.set(rawTargetActor.uuid, {
-          hp: entry.newHP,
-          temp: entry.newTempHP ?? 0,
-          at: Date.now()
-        });
-      }
-
-      const hpDamage = entry.hpDamage ?? 0;
-      const tempDelta = entry.tempDamage ?? 0; // >0 = temp consumed (absorbed damage), <0 = temp granted
-
-      // Damage absorbed by temp HP still counts as damage, per the brief - including when
-      // temp soaks the hit entirely and hpDamage is 0. Keying damage off hpDamage alone
-      // dropped those events outright, since all three amounts came out zero.
-      let dmg = Math.max(hpDamage, 0) + Math.max(tempDelta, 0);
-      let heal = hpDamage < 0 ? -hpDamage : 0;
-      let thp = tempDelta < 0 ? -tempDelta : 0;
-      if (dmg === 0 && heal === 0 && thp === 0) continue;
-
-      const targetDisposition = this.#dispositionForEntry(entry, rawTargetActor);
-      const sameSide =
-        Number.isFinite(sourceDisposition) && Number.isFinite(targetDisposition)
-          ? sourceDisposition * targetDisposition > 0
-          : sourceActor?.uuid === targetActor.uuid;
-
-      // Over-time damage whose origin didn't resolve falls back (inside Midi) to being
-      // parented to the victim itself - indistinguishable from genuine self-damage except
-      // for this synthetic-item marker, so treat that specific combination as unresolved
-      // rather than silently crediting a phantom "self-damage" source.
-      const unresolvedOrigin = isSyntheticOverTime && sourceActor?.uuid === targetActor.uuid;
-
-      this.#store.recordEvent(EVENT_TYPE.HP, {
-        targetUuid: targetActor.uuid,
-        sourceUuid: unresolvedOrigin ? null : sourceActor?.uuid ?? null,
-        needsAttribution: unresolvedOrigin && dmg > 0,
-        dmg,
-        heal,
-        thp,
-        // "pvp" here means "same side, including self" - excluded from the dealer's
-        // damage-dealt total but still counted as damage taken, per the brief's rule that
-        // self-damage follows the same treatment as friendly fire.
-        pvp: dmg > 0 && !!sourceActor && sameSide,
-        downed: (entry.oldHP ?? null) > 0 && entry.newHP === 0
-      });
-    }
-  }
-
-  #resolveEntryActor(entry) {
-    if (entry.actorUuid) {
-      const a = fromUuidSync(entry.actorUuid);
-      if (a instanceof Actor) return a;
-    }
-    const doc = entry.targetUuid ? fromUuidSync(entry.targetUuid) : null;
-    if (!doc) return null;
-    return doc instanceof Actor ? doc : doc.actor ?? null;
-  }
-
-  #dispositionForEntry(entry, actor) {
-    const doc = entry.targetUuid ? fromUuidSync(entry.targetUuid) : null;
-    const tokenDoc = doc?.document ?? doc;
-    if (Number.isFinite(tokenDoc?.disposition)) return tokenDoc.disposition;
-    return actor?.prototypeToken?.disposition;
-  }
-
-  // --- Fallback: raw HP updates Midi never wrapped in a workflow -----------
 
   #onUpdateActorGM(actor, changes, options) {
     if (!touchesHP(changes)) return;
@@ -193,26 +80,13 @@ export class HPCapture {
     if (options.isRest) return; // rest HP restoration excluded entirely, per brief
     if (!prev) return; // no pre-update baseline; #seedBaselineGM normally guarantees one
     if (this.#ignoreNextUpdate.delete(actor.uuid)) return; // hit-die heal, excluded per brief
-    if (this.#consumeMidiExpectation(actor.uuid, newHP, newTemp)) return; // Midi already recorded it
 
     const deltaHP = newHP - prev.hp;
     const deltaTemp = newTemp - prev.temp;
     if (deltaHP === 0 && deltaTemp === 0) return;
 
-    const timeoutId = setTimeout(() => {
-      this.#pendingFallback.delete(actor.uuid);
-      this.#recordFallback(actor, prev, { hp: newHP, temp: newTemp });
-    }, DEDUPE_WINDOW_MS);
-    this.#pendingFallback.set(actor.uuid, timeoutId);
-  }
-
-  #recordFallback(actor, prev, current) {
-    const attributed = resolveAttributedActor(actor);
-    const deltaHP = current.hp - prev.hp;
-    const deltaTemp = current.temp - prev.temp;
-
-    // Losing temp HP is damage absorbed, so it counts as damage taken the same way it does
-    // on the Midi path - otherwise a hit soaked entirely by temp vanishes from the stats.
+    // Losing temp HP is damage absorbed, so it counts as damage taken the same way HP loss
+    // does - otherwise a hit soaked entirely by temp vanishes from the stats.
     let dmg = 0, heal = 0, thp = 0;
     if (deltaHP < 0) dmg = -deltaHP;
     else if (deltaHP > 0) heal = deltaHP;
@@ -220,55 +94,38 @@ export class HPCapture {
     else if (deltaTemp < 0) dmg += -deltaTemp;
     if (dmg === 0 && heal === 0 && thp === 0) return;
 
-    // Last-resort dedup for the cross-client case: when a *player* runs the workflow,
-    // midi-qol.RollComplete fires only on their client, so this client has neither a
-    // pending fallback to cancel nor an expected-HP marker to match - all it can do is
-    // check whether the relayed event has already been recorded. Deliberately narrow,
-    // since matching on recency alone would also swallow a genuine manual adjustment made
-    // moments after a hit on the same token.
-    if (this.#store.hasRecentHPEvent(attributed.uuid, 3)) {
-      return debugLog("Fallback suppressed, Midi already recorded this change", { actor: actor.name, dmg, heal, thp });
-    }
+    const target = resolveAttributedActor(actor);
+    const source = this.#resolveSource(options);
 
-    debugLog("Unattributed HP change caught by fallback", { actor: actor.name, dmg, heal, thp });
+    debugLog("HP change", {
+      target: actor.name,
+      source: source?.name ?? "(unattributed)",
+      dmg,
+      heal,
+      thp
+    });
 
     this.#store.recordEvent(EVENT_TYPE.HP, {
-      targetUuid: attributed.uuid,
-      sourceUuid: null,
-      needsAttribution: dmg > 0 || heal > 0 || thp > 0,
+      targetUuid: target.uuid,
+      sourceUuid: source?.uuid ?? null,
+      needsAttribution: !source && (dmg > 0 || heal > 0 || thp > 0),
       dmg,
       heal,
       thp,
-      pvp: false,
-      downed: dmg > 0 && prev.hp > 0 && current.hp === 0
+      // "pvp" means same side, self included: excluded from the dealer's damage-dealt total
+      // but still counted as damage taken, per the brief's friendly-fire rule.
+      pvp: dmg > 0 && !!source && sameSide(source, target),
+      downed: dmg > 0 && prev.hp > 0 && newHP === 0
     });
   }
 
-  #clearPendingFallback(uuid) {
-    if (!uuid) return;
-    const timeoutId = this.#pendingFallback.get(uuid);
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      this.#pendingFallback.delete(uuid);
-    }
-  }
-
-  /**
-   * Midi states exactly what HP each target should end up on, so an update landing on
-   * precisely those values is the one Midi already reported. Matching the values rather
-   * than just the timing means a genuine manual adjustment moments after a Midi hit on the
-   * same token is still recognised as separate and reaches the attribution queue.
-   */
-  #consumeMidiExpectation(uuid, hp, temp) {
-    const expected = this.#midiExpected.get(uuid);
-    if (!expected) return false;
-    if (Date.now() - expected.at > MIDI_EXPECTATION_TTL_MS) {
-      this.#midiExpected.delete(uuid);
-      return false;
-    }
-    if (expected.hp !== hp || expected.temp !== temp) return false;
-    this.#midiExpected.delete(uuid);
-    return true;
+  /** The attacker or healer Midi named on the update, rolled up to summoner/base actor. */
+  #resolveSource(options) {
+    const uuid = options?.midi?.sourceActorUuid;
+    if (!uuid) return null;
+    const actor = fromUuidSync(uuid);
+    if (!(actor instanceof Actor)) return null;
+    return resolveAttributedActor(actor);
   }
 }
 
@@ -277,4 +134,19 @@ function touchesHP(changes) {
     foundry.utils.hasProperty(changes, "system.attributes.hp.value") ||
     foundry.utils.hasProperty(changes, "system.attributes.hp.temp")
   );
+}
+
+/** Disposition lives on tokens; fall back to the prototype for actors with none placed. */
+function dispositionOf(actor) {
+  const placed = actor?.getActiveTokens?.(false, true) ?? [];
+  const fromToken = placed[0]?.disposition ?? placed[0]?.document?.disposition;
+  return Number.isFinite(fromToken) ? fromToken : actor?.prototypeToken?.disposition;
+}
+
+function sameSide(source, target) {
+  if (source.uuid === target.uuid) return true; // self-damage follows the friendly-fire rule
+  const a = dispositionOf(source);
+  const b = dispositionOf(target);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  return a * b > 0;
 }
