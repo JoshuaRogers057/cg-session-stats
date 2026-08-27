@@ -42,7 +42,7 @@ function injectControls(html, store, attribution) {
   if (form) form.insertAdjacentElement("afterend", bar);
   else html.appendChild(bar);
 
-  bar.querySelector('[data-cgss-action="start"]').addEventListener("click", () => onStart(store, attribution));
+  bar.querySelector('[data-cgss-action="start"]').addEventListener("click", () => startSessionFlow(store, attribution));
   bar.querySelector('[data-cgss-action="report"]').addEventListener("click", () => openReport(store, attribution));
 
   refreshControls(store, attribution);
@@ -64,7 +64,7 @@ function refreshControls(store, attribution) {
   badge.textContent = String(count);
 }
 
-async function onStart(store, attribution) {
+export async function startSessionFlow(store, attribution) {
   if (store.hasUnexportedData) {
     const choice = await confirmUnexportedData();
     if (!choice || choice === "cancel") return;

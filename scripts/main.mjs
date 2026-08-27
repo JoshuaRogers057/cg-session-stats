@@ -7,6 +7,7 @@ import { RollCapture } from "./roll-capture.mjs";
 import { HPCapture } from "./hp-capture.mjs";
 import { registerChatControls } from "./chat-controls.mjs";
 import { registerJournalControls } from "./journal-controls.mjs";
+import { SessionPrompt } from "./session-prompt.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -61,10 +62,12 @@ function initializeModule() {
   const attribution = new AttributionQueue(store);
   const rollCapture = new RollCapture(store);
   const hpCapture = new HPCapture(store);
+  const sessionPrompt = new SessionPrompt(store, attribution);
 
   store.initialize();
   rollCapture.registerHooks();
   hpCapture.registerHooks();
+  sessionPrompt.registerHooks();
 
   // GM launches the report from the chat controls; players from the Journal tab. Each
   // registrar self-gates, so both are called unconditionally.

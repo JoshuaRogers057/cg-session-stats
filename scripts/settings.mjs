@@ -21,6 +21,16 @@ export function registerSettings() {
     onChange: () => Hooks.callAll(HOOK.STATE_CHANGED)
   });
 
+  game.settings.register(MODULE_ID, SETTING.START_PROMPT_PLAYERS, {
+    name: "CGSS.Settings.StartPrompt.Name",
+    hint: "CGSS.Settings.StartPrompt.Hint",
+    scope: "world",
+    config: true,
+    type: Number,
+    range: { min: 0, max: 10, step: 1 },
+    default: 2
+  });
+
   game.settings.register(MODULE_ID, SETTING.DEBUG, {
     name: "CGSS.Settings.Debug.Name",
     hint: "CGSS.Settings.Debug.Hint",

@@ -64,6 +64,7 @@ The queues update live. The stat tables refresh only when you open the window or
 ## Settings
 
 - **Allow Players to View Report** (default off) — gives players a **Session Report** button at the top of their **Journal** sidebar tab, showing the stat tables only. Both queues are hidden from them, along with Edit Roster, End Session, and Export, so players never see entries still waiting on the GM. Takes effect immediately; no reload needed.
+- **Remind Me to Start a Session** (default 2 players) — offers to start a session once this many players are connected and one of them makes a roll. Your own rolls never trigger it, so testing before the game stays quiet, and it asks at most once per login. Set to 0 to turn it off.
 - **Debug Logging** — logs dropped and suppressed events to the console
 
 ## License
