@@ -22,13 +22,14 @@ https://github.com/JoshuaRogers057/cg-session-stats/releases/latest/download/mod
 
 ## Usage
 
-Three GM-only controls sit below the chat message box:
+Two GM-only controls sit below the chat message box:
 
 - **Start Session** — pick tonight's roster and begin recording
-- **End Session** — stop recording and unlock export
 - **Open Report** — the report window; the badge shows how many entries need your input
 
-A session is a manually bounded recording window. Starting one refuses to discard unexported data from a previous session without asking first.
+**End Session** lives in the report window header rather than beside the chat box, and asks for confirmation: a stray click there would otherwise stop recording mid-game with nothing to undo it.
+
+A session is a manually bounded recording window. Starting one refuses to discard unexported data from a previous session without asking first. If you forget, the module offers to start one for you once players are connected and rolling — see Settings.
 
 ### What gets recorded
 
