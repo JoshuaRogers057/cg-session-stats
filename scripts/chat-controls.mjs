@@ -1,5 +1,5 @@
 import { HOOK, debugLog } from "./constants.mjs";
-import { openStartSessionDialog } from "./roster-dialog.mjs";
+import { openStartSessionDialog } from "./session-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
 import { openReport } from "./report-app.mjs";
 

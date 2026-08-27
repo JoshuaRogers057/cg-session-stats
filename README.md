@@ -24,12 +24,14 @@ https://github.com/JoshuaRogers057/cg-session-stats/releases/latest/download/mod
 
 Two GM-only controls sit below the chat message box:
 
-- **Start Session** — pick tonight's roster and begin recording
+- **Start Session** — name the session and begin recording
 - **Open Report** — the report window; the badge shows how many entries need your input
 
 **End Session** lives in the report window header rather than beside the chat box, and asks for confirmation: a stray click there would otherwise stop recording mid-game with nothing to undo it.
 
-A session is a manually bounded recording window. Starting one refuses to discard unexported data from a previous session without asking first. If you forget, the module offers to start one for you once players are connected and rolling — see Settings.
+A session is a manually bounded recording window. Starting one asks only for a name — there is no roster to pick. Every character is tracked, and each appears in the report once they have actually rolled or been involved in something, so a late arrival needs no setup and nobody is silently excluded.
+
+Starting also refuses to discard unexported data from a previous session without asking first, and quietly carries in anything from the last minute, so the first roll or two never go missing if you hit Start a few seconds late. If you forget entirely, the module offers to start one for you once players are connected and rolling — see Settings.
 
 ### What gets recorded
 
@@ -45,7 +47,7 @@ A session is a manually bounded recording window. Starting one refuses to discar
 
 Five tabs — **Attacks**, **Saves**, **Checks**, **Initiative**, and **Combat**. The four roll tabs show roll counts, mean kept die, mean of all dice, natural 20s and 1s, and pass/fail totals; Combat shows the HP and kill columns. Any column header re-sorts. The Saves tab can exclude death and concentration saves from its pass rate.
 
-An **NPCs** checkbox adds aggregated monster rows. PCs and NPCs are listed as separate blocks rather than interleaved by score, so the party is always read as a group. The Combat tab also carries a **Party Total** row covering the roster PCs only — sums for the running totals, but the *best* single blow rather than a sum for the two Max columns.
+An **NPCs** checkbox adds aggregated monster rows. PCs and NPCs are listed as separate blocks rather than interleaved by score, so the party is always read as a group. The Combat tab also carries a **Party Total** row covering the PCs only — sums for the running totals, but the *best* single blow rather than a sum for the two Max columns.
 
 ### Resolving the queues
 
@@ -64,8 +66,8 @@ The queues update live. The stat tables refresh only when you open the window or
 
 ## Settings
 
-- **Allow Players to View Report** (default off) — gives players a **Session Report** button at the top of their **Journal** sidebar tab, showing the stat tables only. Both queues are hidden from them, along with Edit Roster, End Session, and Export, so players never see entries still waiting on the GM. Takes effect immediately; no reload needed.
-- **Remind Me to Start a Session** (default 2 players) — offers to start a session once this many players are connected and one of them makes a roll. Your own rolls never trigger it, so testing before the game stays quiet, and it asks at most once per login. Set to 0 to turn it off.
+- **Allow Players to View Report** (default off) — gives players a **Session Report** button at the top of their **Journal** sidebar tab, showing the stat tables only. Both queues are hidden from them, along with End Session and Export, so players never see entries still waiting on the GM. Takes effect immediately; no reload needed.
+- **Remind Me to Start a Session** (default 2 players) — offers to start a session once this many players are connected and one of them makes a roll. Your own rolls never trigger it, so testing before the game stays quiet. The prompt offers **Start Session**, **Pause 1 Hour** (useful when testing with players already on — it will remind you again when the real session starts), and **Not Now**, which stays quiet until reload. Set to 0 to turn it off.
 - **Debug Logging** — logs dropped and suppressed events to the console
 
 ## License

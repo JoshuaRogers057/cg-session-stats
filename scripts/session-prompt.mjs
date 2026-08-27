@@ -1,6 +1,8 @@
 import { MODULE_ID, SETTING, debugLog } from "./constants.mjs";
 import { startSessionFlow } from "./chat-controls.mjs";
 
+const SNOOZE_MS = 60 * 60 * 1000;
+
 /**
  * Offers to start a session when play visibly begins, so forgetting the button costs
  * nothing.
@@ -12,13 +14,16 @@ import { startSessionFlow } from "./chat-controls.mjs";
  * rolling initiative are covered by exactly the same rule, so combat needs no separate
  * trigger.
  *
- * Asks at most once per login. Declining, or starting a session by any route, keeps it
- * quiet for the rest of that session - a reminder that reappears is worse than no reminder.
+ * Three answers, because "no" means two different things. "Not now" drops it for this
+ * login; "Pause 1 hour" is the softer one, for a GM testing with players already on who
+ * does want reminding when the real session starts. Either way it never asks twice in a
+ * row - a reminder that reappears is worse than no reminder.
  */
 export class SessionPrompt {
   #store;
   #attribution;
   #asked = false;
+  #snoozedUntil = 0;
 
   constructor(store, attribution) {
     this.#store = store;
@@ -41,6 +46,7 @@ export class SessionPrompt {
 
   #consider() {
     if (this.#asked || this.#store.isRecording) return;
+    if (Date.now() < this.#snoozedUntil) return;
 
     const threshold = game.settings.get(MODULE_ID, SETTING.START_PROMPT_PLAYERS);
     if (!threshold) return; // 0 disables the reminder entirely
@@ -57,13 +63,28 @@ export class SessionPrompt {
   }
 
   async #prompt(players) {
-    const confirmed = await foundry.applications.api.DialogV2.confirm({
-      window: { title: game.i18n.localize("CGSS.StartPrompt.Title"), icon: "fa-solid fa-circle-play" },
-      content: `<p>${game.i18n.format("CGSS.StartPrompt.Body", { players })}</p>`,
-      yes: { label: game.i18n.localize("CGSS.StartPrompt.Yes"), icon: "fa-solid fa-circle-play" },
-      no: { label: game.i18n.localize("CGSS.StartPrompt.No") },
-      rejectClose: false
+    const choice = await new Promise((resolve) => {
+      const dialog = new foundry.applications.api.DialogV2({
+        window: { title: game.i18n.localize("CGSS.StartPrompt.Title"), icon: "fa-solid fa-circle-play" },
+        content: `<p>${game.i18n.format("CGSS.StartPrompt.Body", { players })}</p>`,
+        buttons: [
+          { action: "start", icon: "fa-solid fa-circle-play", label: game.i18n.localize("CGSS.StartPrompt.Yes"), default: true },
+          { action: "snooze", icon: "fa-solid fa-clock", label: game.i18n.localize("CGSS.StartPrompt.Snooze") },
+          { action: "no", icon: "fa-solid fa-xmark", label: game.i18n.localize("CGSS.StartPrompt.No") }
+        ],
+        submit: (result) => resolve(result)
+      });
+      dialog.addEventListener("close", () => resolve(null), { once: true });
+      dialog.render({ force: true });
     });
-    if (confirmed) startSessionFlow(this.#store, this.#attribution);
+
+    if (choice === "start") startSessionFlow(this.#store, this.#attribution);
+    else if (choice === "snooze") {
+      // Eligible again afterwards, so a GM testing before the game is still reminded when
+      // it actually starts.
+      this.#snoozedUntil = Date.now() + SNOOZE_MS;
+      this.#asked = false;
+    }
+    // "no" and dismissing both leave #asked set: quiet until reload.
   }
 }

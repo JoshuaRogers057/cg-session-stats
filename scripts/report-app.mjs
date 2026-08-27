@@ -1,6 +1,5 @@
 import { MODULE_ID, MODULE_TITLE, ROLL_CATEGORY, ROLL_TAG, HOOK, MANUAL_SOURCE, NOT_TRACKED } from "./constants.mjs";
 import { buildRollTable, buildInitiativeTable, buildCombatTable, buildPartyTotals, sortTable } from "./aggregator.mjs";
-import { openEditRosterDialog } from "./roster-dialog.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
 
 const ROLL_COLUMNS = [
@@ -242,7 +241,6 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   #bindTop() {
     const root = this.element;
-    root.querySelector('[data-cgss-action="editRoster"]')?.addEventListener("click", () => openEditRosterDialog(this.#store));
     root.querySelector('[data-cgss-action="endSession"]')?.addEventListener("click", () => this.#confirmEndSession());
     root.querySelector('[data-cgss-action="exportCsv"]')?.addEventListener("click", () => exportSessionCSV(this.#store, this.#attribution));
     root.querySelectorAll("select[data-attribution-index]").forEach((sel) => {

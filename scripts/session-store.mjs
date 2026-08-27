@@ -7,7 +7,12 @@ const FLUSH_DEBOUNCE_MS = 3000;
 // that rolled it.
 const AMEND_RETRY_MS = 2000;
 
-function freshSessionData(name, roster) {
+// Events captured this long before a session starts are carried into it. A GM hits Start
+// within moments of play beginning, so this only rescues the first roll or two that beat
+// them to it - short enough that earlier test rolls are never swept up.
+const BACKFILL_WINDOW_MS = 60000;
+
+function freshSessionData(name) {
   const now = Math.floor(Date.now() / 1000);
   return {
     v: 1,
@@ -16,7 +21,6 @@ function freshSessionData(name, roster) {
       start: now,
       end: null,
       exported: false,
-      roster: [...roster],
       combats: [],
       npcSeen: {} // uuid -> name, for actors that appeared in a combat this session
     },
@@ -33,6 +37,8 @@ function freshSessionData(name, roster) {
  */
 export class SessionStore {
   #data = null;
+  #preSession = []; // { at, payload } captured before a session started, GM-side only
+  #preSessionAmendments = []; // { at, amendment }, same
   #flush = foundry.utils.debounce(() => this.#writeNow(), FLUSH_DEBOUNCE_MS);
 
   initialize() {
@@ -97,7 +103,7 @@ export class SessionStore {
   /** GM-only. Invoked directly for the GM's own captures, and via socket relay for everyone else's. */
   ingestEvent(payload) {
     if (!game.user.isGM) return;
-    if (!this.isRecording) return debugLog("Dropped event, not recording", payload);
+    if (!this.isRecording) return this.#bufferPreSession(payload);
 
     const { type, ...raw } = payload;
     if (type === EVENT_TYPE.ROLL) this.#ingestRoll(raw);
@@ -146,14 +152,13 @@ export class SessionStore {
     const target = this.#resolveActor(raw.targetUuid);
     if (!target) return debugLog("Dropped HP event, target not trackable this session", raw);
 
-    // Source may be absent (traps, environmental), a non-roster PC (treated as unresolved),
-    // or a resolvable roster/NPC actor.
+    // Source may be absent entirely (traps, environmental, manual edits) or unresolvable.
     let sourceUuid = null;
     let queued = !!raw.needsAttribution;
     if (raw.sourceUuid) {
       const source = this.#resolveActor(raw.sourceUuid);
       if (source) sourceUuid = source.uuid;
-      else queued = true; // non-roster PC or otherwise untrackable source - still needs a home
+      else queued = true; // named a source we cannot resolve - still needs a home
     }
     // Any sourceless HP change is attributable, healing and temp HP included - a manual
     // heal is exactly as much "who did that?" as a manual point of damage.
@@ -177,6 +182,42 @@ export class SessionStore {
   }
 
   /**
+   * Holds events seen while no session is recording, so the first roll or two of the
+   * evening are not lost to a GM who is a few seconds behind the table. Pruned to
+   * BACKFILL_WINDOW_MS on every write, which is what keeps earlier test rolls out.
+   */
+  #bufferPreSession(payload) {
+    const now = Date.now();
+    this.#preSession.push({ at: now, payload });
+    const cutoff = now - BACKFILL_WINDOW_MS;
+    while (this.#preSession.length && this.#preSession[0].at < cutoff) this.#preSession.shift();
+  }
+
+  /** Same, for amendments - otherwise a backfilled save would lose its pass/fail. */
+  #bufferAmendment(amendment) {
+    const now = Date.now();
+    this.#preSessionAmendments.push({ at: now, amendment });
+    const cutoff = now - BACKFILL_WINDOW_MS;
+    while (this.#preSessionAmendments.length && this.#preSessionAmendments[0].at < cutoff) {
+      this.#preSessionAmendments.shift();
+    }
+  }
+
+  /** Replays the buffer into a session that has just started, newest window only. */
+  #replayBackfill() {
+    const cutoff = Date.now() - BACKFILL_WINDOW_MS;
+    const events = this.#preSession.filter((e) => e.at >= cutoff);
+    const amendments = this.#preSessionAmendments.filter((a) => a.at >= cutoff);
+    this.#preSession = [];
+    this.#preSessionAmendments = [];
+
+    for (const { payload } of events) this.ingestEvent(payload);
+    // After the events, so each amendment finds the roll it belongs to.
+    for (const { amendment } of amendments) this.amendRoll(amendment);
+    if (events.length) debugLog("Backfilled pre-session events", { events: events.length, amendments: amendments.length });
+  }
+
+  /**
    * Applies an amendment, retrying once shortly after if the roll it refers to has not
    * arrived yet: the roll is relayed from whichever client physically rolled it, while the
    * amendment comes from the client running the workflow, so they can land out of order.
@@ -185,6 +226,7 @@ export class SessionStore {
    */
   queueAmendment(amendment) {
     if (!game.user.isGM) return;
+    if (!this.isRecording) return this.#bufferAmendment(amendment);
     if (this.amendRoll(amendment)) return;
     setTimeout(() => {
       if (!this.amendRoll(amendment)) debugLog("Amendment found no matching roll", amendment);
@@ -239,21 +281,26 @@ export class SessionStore {
     return !!this.#resolveActor(uuid);
   }
 
-  /** Resolves an actor for tracking purposes: PCs must be on the roster, NPCs are always eligible. */
+  /**
+   * Registers an actor's display identity. Every character and NPC is trackable; who
+   * actually appears in the report is decided by whether they generated any events, not by
+   * a roster chosen up front.
+   */
   #resolveActor(uuid) {
     if (!uuid) return null;
     const actor = fromUuidSync(uuid);
     if (!actor) return null;
 
     const isPC = actor.type === "character";
-    if (isPC && !this.#data.meta.roster.includes(uuid)) return null;
 
     this.#data.actors[uuid] = { n: actor.name, t: isPC ? "pc" : "npc" };
     return { uuid, actor };
   }
 
   #elapsedNow() {
-    return Math.floor(Date.now() / 1000) - this.#data.meta.start;
+    // Clamped: replayed backfill events happened before the session began, and a negative
+    // offset would sort them oddly and break the amendment window.
+    return Math.max(0, Math.floor(Date.now() / 1000) - this.#data.meta.start);
   }
 
   #noteCombat(combat) {
@@ -274,9 +321,10 @@ export class SessionStore {
 
   // --- Lifecycle -----------------------------------------------------------
 
-  startSession(name, roster) {
+  startSession(name) {
     if (!game.user.isGM) return;
-    this.#data = freshSessionData(name, roster);
+    this.#data = freshSessionData(name);
+    this.#replayBackfill();
     this.#writeNow();
     Hooks.callAll(HOOK.SESSION_STARTED);
     Hooks.callAll(HOOK.STATE_CHANGED);
@@ -300,16 +348,6 @@ export class SessionStore {
   markExported() {
     if (!game.user.isGM || !this.#data) return;
     this.#data.meta.exported = true;
-    this.#writeNow();
-    Hooks.callAll(HOOK.STATE_CHANGED);
-  }
-
-  editRoster(addUuids = [], removeUuids = []) {
-    if (!game.user.isGM || !this.#data) return;
-    const roster = new Set(this.#data.meta.roster);
-    for (const uuid of addUuids) roster.add(uuid);
-    for (const uuid of removeUuids) roster.delete(uuid);
-    this.#data.meta.roster = [...roster];
     this.#writeNow();
     Hooks.callAll(HOOK.STATE_CHANGED);
   }

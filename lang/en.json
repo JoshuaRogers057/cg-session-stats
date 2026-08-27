@@ -8,16 +8,15 @@
   "CGSS.StartPrompt.Body": "A player just rolled and {players} players are connected, but nothing is being recorded. Start a session now?",
   "CGSS.StartPrompt.Yes": "Start Session",
   "CGSS.StartPrompt.No": "Not Now",
+  "CGSS.StartPrompt.Snooze": "Pause 1 Hour",
 
   "CGSS.Settings.Debug.Name": "Debug Logging",
   "CGSS.Settings.Debug.Hint": "Log dropped/unrecorded events to the console for troubleshooting.",
 
-  "CGSS.Roster.StartTitle": "Start Session",
-  "CGSS.Roster.StartPrompt": "Select who's playing tonight. Unchecked characters will not be tracked.",
-  "CGSS.Roster.SessionName": "Session Name",
-  "CGSS.Roster.None": "No player-owned characters found.",
-  "CGSS.Roster.EditTitle": "Edit Roster",
-  "CGSS.Roster.Confirm": "Confirm",
+  "CGSS.Session.StartTitle": "Start Session",
+  "CGSS.Session.Name": "Session Name",
+  "CGSS.Session.Hint": "Every character is tracked automatically. They appear in the report once they've rolled or been involved in something, so late arrivals need no setup.",
+  "CGSS.Session.Confirm": "Start Session",
 
   "CGSS.EndSession.Title": "End Session?",
   "CGSS.EndSession.Body": "Stop recording after {elapsed} and {events} events? Nothing further will be tracked, and recording cannot be resumed once ended.",

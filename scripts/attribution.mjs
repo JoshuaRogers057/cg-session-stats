@@ -32,29 +32,32 @@ export class AttributionQueue {
   }
 
   /**
-   * Roster PCs and NPCs seen in combat this session, grouped for the resolve dropdown.
+   * Everyone who could plausibly be the source, grouped for the resolve dropdown.
    *
-   * NPCs are collapsed by name to mirror how the report aggregates them: six unlinked
-   * goblins are one "Goblin" row, so six dropdown entries would just be six ways to pick
-   * the same row. Any one of their UUIDs lands in that row, so the first is kept.
-   * PCs stay individual - they are their own rows even if two share a name.
+   * PCs are those who have actually appeared in this session - rolled, or dealt, taken or
+   * received something - rather than every character in the world, which on a large world
+   * would be an unusable list. NPCs additionally include combatants seen this session, and
+   * are collapsed by name to mirror how the report aggregates them: six unlinked goblins
+   * are one "Goblin" row, so six entries would be six ways to pick the same row.
    */
   get candidateSources() {
     const data = this.store.data;
     if (!data) return { pcs: [], npcs: [] };
 
-    const pcs = data.meta.roster.map((uuid) => ({
-      uuid,
-      name: data.actors[uuid]?.n ?? fromUuidSync(uuid)?.name ?? uuid
-    }));
+    const pcs = [];
+    const npcByName = new Map();
 
-    const byName = new Map();
-    for (const [uuid, name] of Object.entries(data.meta.npcSeen)) {
-      if (!byName.has(name)) byName.set(name, { uuid, name });
+    for (const [uuid, identity] of Object.entries(data.actors ?? {})) {
+      if (identity.t === "pc") pcs.push({ uuid, name: identity.n });
+      else if (!npcByName.has(identity.n)) npcByName.set(identity.n, { uuid, name: identity.n });
     }
-    const npcs = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang));
+    // Combatants that have not generated an event of their own are still valid sources.
+    for (const [uuid, name] of Object.entries(data.meta.npcSeen ?? {})) {
+      if (!npcByName.has(name)) npcByName.set(name, { uuid, name });
+    }
 
-    return { pcs, npcs };
+    const byName = (a, b) => a.name.localeCompare(b.name, game.i18n.lang);
+    return { pcs: pcs.sort(byName), npcs: [...npcByName.values()].sort(byName) };
   }
 
   /**
