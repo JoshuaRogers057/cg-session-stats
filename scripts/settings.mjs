@@ -16,7 +16,9 @@ export function registerSettings() {
     scope: "world",
     config: true,
     type: Boolean,
-    default: false,
+    // On out of the box: the stats are the table's as much as the GM's. A GM who would rather
+    // keep them private turns it off here. Worlds that already saved a value keep it.
+    default: true,
     // Toggling this adds or removes the players' Open Report button immediately.
     onChange: () => Hooks.callAll(HOOK.STATE_CHANGED)
   });
@@ -29,6 +31,16 @@ export function registerSettings() {
     type: Number,
     range: { min: 0, max: 10, step: 1 },
     default: 2
+  });
+
+  game.settings.register(MODULE_ID, SETTING.AUTO_END_HOURS, {
+    name: "CGSS.Settings.AutoEnd.Name",
+    hint: "CGSS.Settings.AutoEnd.Hint",
+    scope: "world",
+    config: true,
+    type: Number,
+    range: { min: 0, max: 12, step: 1 },
+    default: 3
   });
 
   game.settings.register(MODULE_ID, SETTING.DEBUG, {

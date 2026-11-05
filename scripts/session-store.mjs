@@ -90,6 +90,23 @@ export class SessionStore {
     return this.#data?.meta.combats.length ?? 0;
   }
 
+  /** Epoch seconds of the session's most recent d20 roll, or its start if nobody has rolled. */
+  get lastRollAt() {
+    if (!this.#data) return null;
+    const events = this.#data.events;
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i].e === EVENT_TYPE.ROLL) return this.#data.meta.start + events[i].t;
+    }
+    return this.#data.meta.start;
+  }
+
+  /** Epoch seconds of the session's most recent event of any kind, or its start if none. */
+  get lastEventAt() {
+    if (!this.#data) return null;
+    const latest = this.#data.events.reduce((max, e) => Math.max(max, e.t), 0);
+    return this.#data.meta.start + latest;
+  }
+
   /**
    * Called by capture modules on every client for every recorded roll or HP change.
    * `raw` shape depends on `type`; see roll-capture.mjs / hp-capture.mjs for producers.
@@ -330,9 +347,14 @@ export class SessionStore {
     Hooks.callAll(HOOK.STATE_CHANGED);
   }
 
-  endSession() {
+  /**
+   * @param {object} [options]
+   * @param {number} [options.at]  Epoch seconds to stamp as the end, for a session closed
+   *   after the fact (see idle-end.mjs). Defaults to now.
+   */
+  endSession({ at } = {}) {
     if (!game.user.isGM || !this.#data) return;
-    this.#data.meta.end = Math.floor(Date.now() / 1000);
+    this.#data.meta.end = at ?? Math.floor(Date.now() / 1000);
     this.#writeNow();
     Hooks.callAll(HOOK.SESSION_ENDED);
     Hooks.callAll(HOOK.STATE_CHANGED);

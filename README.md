@@ -27,7 +27,7 @@ Two GM-only controls sit below the chat message box:
 - **Start Session** — name the session and begin recording
 - **Open Report** — the report window; the badge shows how many entries need your input
 
-**End Session** lives in the report window header rather than beside the chat box, and asks for confirmation: a stray click there would otherwise stop recording mid-game with nothing to undo it.
+**End Session** lives in the report window header rather than beside the chat box, and asks for confirmation: a stray click there would otherwise stop recording mid-game with nothing to undo it. If you forget to press it, the session ends by itself after 3 hours with no rolls (see Settings).
 
 A session is a manually bounded recording window. Starting one asks only for a name — there is no roster to pick. Every character is tracked, and each appears in the report once they have actually rolled or been involved in something, so a late arrival needs no setup and nobody is silently excluded.
 
@@ -66,8 +66,9 @@ The queues update live. The stat tables refresh only when you open the window or
 
 ## Settings
 
-- **Allow Players to View Report** (default off) — gives players a **Session Report** button at the top of their **Journal** sidebar tab, showing the stat tables only. Both queues are hidden from them, along with End Session and Export, so players never see entries still waiting on the GM. Takes effect immediately; no reload needed.
+- **Allow Players to View Report** (default on) — gives players a **Session Report** button at the top of their **Journal** sidebar tab, showing the stat tables only. Both queues are hidden from them, along with End Session and Export, so players never see entries still waiting on the GM. Takes effect immediately; no reload needed. Turn it off if you'd rather keep the stats to yourself.
 - **Remind Me to Start a Session** (default 2 players) — offers to start a session once this many players are connected and one of them makes a roll. Your own rolls never trigger it, so testing before the game stays quiet. The prompt offers **Start Session**, **Pause 1 Hour** (useful when testing with players already on — it will remind you again when the real session starts), and **Not Now**, which stays quiet until reload. Set to 0 to turn it off.
+- **Auto-End After Hours Without a Roll** (default 3) — ends the recording once nobody has made a d20 roll for this many hours. If the GM's browser was closed at the time, it ends as soon as the GM logs back in. The end time is set to the last thing recorded, so the idle stretch doesn't inflate the session's length, and a notice tells you it happened. Raise it for long roleplay-only stretches, or set it to 0 to turn it off.
 - **Debug Logging** — logs dropped and suppressed events to the console
 
 ## License

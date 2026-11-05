@@ -23,6 +23,7 @@ export const SETTING = {
   SESSION_DATA: "sessionData",
   ALLOW_PLAYER_REPORT: "allowPlayerReport",
   START_PROMPT_PLAYERS: "startPromptPlayers",
+  AUTO_END_HOURS: "autoEndHours",
   DEBUG: "debug"
 };
 

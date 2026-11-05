@@ -8,6 +8,7 @@ import { HPCapture } from "./hp-capture.mjs";
 import { registerChatControls } from "./chat-controls.mjs";
 import { registerJournalControls } from "./journal-controls.mjs";
 import { SessionPrompt } from "./session-prompt.mjs";
+import { IdleEnd } from "./idle-end.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -73,6 +74,10 @@ function initializeModule() {
   // registrar self-gates, so both are called unconditionally.
   registerChatControls(store, attribution);
   registerJournalControls(store, attribution);
+
+  // Last: it may end a session left running since a previous login, and the controls above
+  // should already be listening for that.
+  new IdleEnd(store).registerHooks();
 
   const mod = game.modules.get(MODULE_ID);
   mod.api = { store, attribution, hpCapture };
