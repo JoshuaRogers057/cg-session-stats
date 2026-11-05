@@ -1,5 +1,7 @@
 import { MODULE_ID, SETTING, EVENT_TYPE, ROLL_CATEGORY, HOOK, debugLog } from "./constants.mjs";
 import { relayRecordEvent } from "./socket.mjs";
+import { describeActor } from "./actor-info.mjs";
+import { resolveAttributedActor } from "./actor-resolve.mjs";
 
 const FLUSH_DEBOUNCE_MS = 3000;
 
@@ -12,16 +14,25 @@ const AMEND_RETRY_MS = 2000;
 // them to it - short enough that earlier test rolls are never swept up.
 const BACKFILL_WINDOW_MS = 60000;
 
+// A fight whose turn hasn't moved for this long is treated as abandoned - a GM who moved on
+// without ending the combat - so later events stop being credited to it.
+const FIGHT_STALE_SECONDS = 30 * 60;
+
 function freshSessionData(name) {
   const now = Math.floor(Date.now() / 1000);
   return {
     v: 1,
     meta: {
+      id: foundry.utils.randomID(), // identifies the session to the upload receiver
       name,
       start: now,
       end: null,
       exported: false,
       combats: [],
+      // One entry per combat that ran this session, in order. Events carry `f`, an index
+      // into this list. { id, s, e, last, r, c } - combat id; start, end and last turn
+      // change in session seconds; rounds; combatants as uuid -> 1 hostile / 0 otherwise.
+      fights: [],
       npcSeen: {} // uuid -> name, for actors that appeared in a combat this session
     },
     actors: {}, // uuid -> { n: name, t: "pc"|"npc" }
@@ -47,10 +58,17 @@ export class SessionStore {
     this.#data = game.settings.get(MODULE_ID, SETTING.SESSION_DATA);
     if (!game.user.isGM) return;
 
+    // A fight is registered by visible activity in this session - starting it, or moving its
+    // turn - never merely by existing. A combat left running from last week is never
+    // touched again, so it never claims tonight's events.
     Hooks.on("combatStart", (combat) => this.#noteCombat(combat));
+    Hooks.on("updateCombat", (combat, changes) => {
+      if (combat.started && ("round" in changes || "turn" in changes)) this.#noteCombat(combat);
+    });
     Hooks.on("createCombatant", (combatant) => {
       if (combatant.combat?.started) this.#noteCombat(combatant.combat);
     });
+    Hooks.on("deleteCombat", (combat) => this.#endFight(combat));
   }
 
   /**
@@ -87,7 +105,9 @@ export class SessionStore {
   }
 
   get combatCount() {
-    return this.#data?.meta.combats.length ?? 0;
+    const meta = this.#data?.meta;
+    if (!meta) return 0;
+    return meta.fights ? meta.fights.length : meta.combats.length; // fights: sessions since 0.6
   }
 
   /** Epoch seconds of the session's most recent d20 roll, or its start if nobody has rolled. */
@@ -125,7 +145,7 @@ export class SessionStore {
     const { type, ...raw } = payload;
     if (type === EVENT_TYPE.ROLL) this.#ingestRoll(raw);
     else if (type === EVENT_TYPE.HP) this.#ingestHP(raw);
-    else if (type === EVENT_TYPE.MISS) this.#ingestMiss(raw);
+    else if (type === EVENT_TYPE.MISS || type === EVENT_TYPE.HIT) this.#ingestAttacked(type, raw);
     else return debugLog("Dropped event, unknown type", payload);
 
     this.#flush();
@@ -152,16 +172,22 @@ export class SessionStore {
     // number at all, so pass/fail is meaningless rather than merely unknown.
     if (event.p === null && raw.category !== ROLL_CATEGORY.INITIATIVE) event.pq = 1;
 
+    // Initiative is rolled before a fight's first round, when it is not yet registered, and
+    // per-fight initiative is no use to anyone - so it is left untagged.
+    if (raw.category !== ROLL_CATEGORY.INITIATIVE) this.#tagFight(event, resolved.uuid);
+
     this.#data.events.push(event);
     if (event.pq) Hooks.callAll(HOOK.QUEUE_CHANGED);
   }
 
-  /** An attack that targeted this actor and missed. No source is kept - the stat is about
-   *  the defender, and crediting the attacker for missing isn't meaningful. */
-  #ingestMiss(raw) {
+  /** An attack that targeted this actor, hit or miss. No source is kept - the stat is about
+   *  the defender: how often they are attacked and how often that misses. */
+  #ingestAttacked(type, raw) {
     const target = this.#resolveActor(raw.targetUuid);
-    if (!target) return debugLog("Dropped miss, target not trackable this session", raw);
-    this.#data.events.push({ e: EVENT_TYPE.MISS, t: this.#elapsedNow(), g: target.uuid });
+    if (!target) return debugLog("Dropped attack, target not trackable this session", raw);
+    const event = { e: type, t: this.#elapsedNow(), g: target.uuid };
+    this.#tagFight(event, target.uuid);
+    this.#data.events.push(event);
   }
 
   #ingestHP(raw) {
@@ -193,6 +219,7 @@ export class SessionStore {
     if (raw.pvp) event.pvp = 1;
     if (raw.downed) event.dn = 1;
     if (queued && !sourceUuid) event.q = 1;
+    this.#tagFight(event, target.uuid, sourceUuid);
 
     this.#data.events.push(event);
     if (event.q) Hooks.callAll(HOOK.QUEUE_CHANGED);
@@ -308,9 +335,11 @@ export class SessionStore {
     const actor = fromUuidSync(uuid);
     if (!actor) return null;
 
-    const isPC = actor.type === "character";
-
-    this.#data.actors[uuid] = { n: actor.name, t: isPC ? "pc" : "npc" };
+    // Class, level and CR are snapshotted the first time an actor appears (see
+    // actor-info.mjs); only the name follows later changes, so a rename still shows.
+    const existing = this.#data.actors[uuid];
+    if (existing?.v === 2) existing.n = actor.name;
+    else this.#data.actors[uuid] = describeActor(actor);
     return { uuid, actor };
   }
 
@@ -320,20 +349,70 @@ export class SessionStore {
     return Math.max(0, Math.floor(Date.now() / 1000) - this.#data.meta.start);
   }
 
+  /**
+   * Registers a combat as a fight of this session (or refreshes it): its round count, the
+   * time of its latest turn, and everyone in it. Every combatant is recorded, including
+   * those who never act, so a PC who did nothing in a fight still counts as a zero there -
+   * leaving them out would inflate the per-fight averages.
+   */
   #noteCombat(combat) {
     if (!this.#data || !this.isRecording) return;
-    if (!this.#data.meta.combats.includes(combat.id)) {
-      this.#data.meta.combats.push(combat.id);
+    const meta = this.#data.meta;
+    if (!meta.combats.includes(combat.id)) meta.combats.push(combat.id);
+    meta.fights ??= []; // a session started before 0.6 has no fight list
+
+    const now = this.#elapsedNow();
+    let fight = meta.fights.find((f) => f.id === combat.id);
+    if (!fight) {
+      fight = { id: combat.id, s: now, e: null, last: now, r: 0, c: {} };
+      meta.fights.push(fight);
     }
+    fight.last = now;
+    fight.r = Math.max(fight.r, combat.round ?? 0);
+
     for (const combatant of combat.combatants) {
       const actor = combatant.actor;
-      if (actor?.type !== "npc") continue;
-      const uuid = actor.uuid;
-      if (!this.#data.meta.npcSeen[uuid]) {
-        this.#data.meta.npcSeen[uuid] = actor.name;
-        this.#flush();
-      }
+      if (!actor) continue;
+      if (actor.type === "npc" && !meta.npcSeen[actor.uuid]) meta.npcSeen[actor.uuid] = actor.name;
+
+      // Same roll-up as everywhere else: a wild-shaped PC is their base character, a summon
+      // is its summoner.
+      const resolved = this.#resolveActor(resolveAttributedActor(actor).uuid);
+      if (!resolved) continue;
+      const hostile = combatant.token?.disposition === CONST.TOKEN_DISPOSITIONS.HOSTILE ? 1 : 0;
+      // Never downgraded: an enemy whose summon is friendly-flagged stays an enemy.
+      fight.c[resolved.uuid] = Math.max(fight.c[resolved.uuid] ?? 0, hostile);
     }
+    this.#flush();
+  }
+
+  #endFight(combat) {
+    if (!this.isRecording) return;
+    const fight = this.#data.meta.fights?.find((f) => f.id === combat.id && f.e === null);
+    if (!fight) return;
+    fight.e = this.#elapsedNow();
+    fight.r = Math.max(fight.r, combat.round ?? 0);
+    this.#flush();
+  }
+
+  /**
+   * Credits an event to the fight it happened in, as `f`. With one live fight, everything
+   * belongs to it - including a PC who never joined the tracker but swung a sword anyway.
+   * With several at once (two scenes fighting), the fight that has these actors in it.
+   */
+  #tagFight(event, ...uuids) {
+    const fights = this.#data.meta.fights;
+    if (!fights?.length) return;
+    const now = this.#elapsedNow();
+    const live = [];
+    fights.forEach((f, i) => {
+      if (f.e === null && now - f.last <= FIGHT_STALE_SECONDS) live.push(i);
+    });
+    if (!live.length) return;
+
+    let index = live.length === 1 ? live[0] : null;
+    if (index === null) index = live.find((i) => uuids.some((u) => u && u in fights[i].c)) ?? null;
+    if (index !== null) event.f = index;
   }
 
   // --- Lifecycle -----------------------------------------------------------

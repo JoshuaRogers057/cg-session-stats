@@ -3,6 +3,16 @@
   "CGSS.Settings.AllowPlayerReport.Hint": "On by default. Players get a Session Report button at the top of their Journal tab, showing the stat tables only. Unresolved entries awaiting your input are hidden from them, as are End Session and Export. Turn this off to keep the stats to yourself.",
   "CGSS.Settings.AutoEnd.Name": "Auto-End After Hours Without a Roll",
   "CGSS.Settings.AutoEnd.Hint": "End the recording once nobody has made a d20 roll for this many hours, in case you forget to press End Session. The end time is set to the last thing recorded, so the idle hours don't count towards the session's length. Set to 0 to turn it off.",
+  "CGSS.Settings.ShareStats.Name": "Share Stats with the Champions Guild",
+  "CGSS.Settings.ShareStats.Hint": "When a session ends, send its stats to the Champions Guild for balance research. Turn this off to stop sharing; anything not yet sent is dropped.",
+
+  "CGSS.Share.Title": "Session Stats Sharing",
+  "CGSS.Share.Body": "Session stats are shared with the Champions Guild for balance research.",
+  "CGSS.Share.Detail": "When a session ends, its report is sent: the session and world names, your name, player and character names, classes, levels, monster CRs, and the roll and combat numbers. Nothing else about your world is sent. You can turn this off at any time in the module settings.",
+  "CGSS.Share.Ok": "OK",
+  "CGSS.Share.TurnOff": "Turn Off Sharing",
+  "CGSS.Share.Failed": "Session Stats couldn't share the last session's stats. It will try again automatically.",
+
   "CGSS.AutoEnd.Notice": "Session \"{name}\" was ended automatically after {hours} hours with no rolls. It's ready to export from the report window.",
   "CGSS.Settings.StartPrompt.Name": "Remind Me to Start a Session",
   "CGSS.Settings.StartPrompt.Hint": "Offer to start a session once this many players are connected and one of them makes a roll. Your own rolls never trigger it, so testing before the game stays quiet. Asks at most once per login. Set to 0 to turn the reminder off.",

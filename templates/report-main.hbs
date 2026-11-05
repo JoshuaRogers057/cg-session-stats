@@ -9,6 +9,13 @@
     <label class="cgss-npc-toggle">
       <input type="checkbox" data-cgss-action="toggleNPCs" {{#if showNPCs}}checked{{/if}}> NPCs
     </label>
+    {{#if fightOptions.length}}
+      <select class="cgss-fight-select" data-cgss-action="selectFight" title="Show one fight, or the whole session">
+        {{#each fightOptions}}
+          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+    {{/if}}
     {{#if showSpecialSavesToggle}}
       <label class="cgss-special-saves-toggle">
         <input type="checkbox" data-cgss-action="toggleSpecialSaves" {{#if excludeSpecialSaves}}checked{{/if}}>

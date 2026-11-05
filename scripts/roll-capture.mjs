@@ -66,12 +66,15 @@ export class RollCapture {
 
     this.#push(actor, ROLL_CATEGORY.ATTACK, faces, pass);
 
+    // Hits as well as misses, so the defender's side has a denominator: "avoided 6" means
+    // little without knowing whether they were attacked 8 times or 40.
     for (const token of targets) {
       const uuid = tokenUuid(token);
-      if (!uuid || hitUuids.has(uuid)) continue;
+      if (!uuid) continue;
       const targetActor = token?.actor;
       if (!targetActor) continue;
-      this.store.recordEvent(EVENT_TYPE.MISS, { targetUuid: resolveAttributedActor(targetActor).uuid });
+      const type = hitUuids.has(uuid) ? EVENT_TYPE.HIT : EVENT_TYPE.MISS;
+      this.store.recordEvent(type, { targetUuid: resolveAttributedActor(targetActor).uuid });
     }
   }
 

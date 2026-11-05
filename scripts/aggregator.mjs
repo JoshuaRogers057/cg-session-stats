@@ -1,4 +1,5 @@
 import { EVENT_TYPE, ROLL_CATEGORY, MANUAL_SOURCE } from "./constants.mjs";
+import { formatCR } from "./actor-info.mjs";
 
 /**
  * Pure functions: raw session events in, table rows out. Nothing here reads game state or
@@ -32,6 +33,7 @@ export function buildRollTable(data, category, { showNPCs = false, excludeTags =
   const rows = [...groups.values()].map((g) => {
     const resolved = g.passes + g.fails;
     return {
+      key: g.key,
       name: g.name,
       isPC: g.isPC,
       rolls: g.keptFaces.length,
@@ -65,6 +67,7 @@ export function buildInitiativeTable(data, { showNPCs = false } = {}) {
   }
 
   const rows = [...groups.values()].map((g) => ({
+    key: g.key,
     name: g.name,
     isPC: g.isPC,
     rolls: g.keptFaces.length,
@@ -76,15 +79,42 @@ export function buildInitiativeTable(data, { showNPCs = false } = {}) {
   return sortTable(rows, "mean", "desc");
 }
 
-export function buildCombatTable(data, { showNPCs = false } = {}) {
+/**
+ * @param {object} [options]
+ * @param {number|null} [options.fight]  Index into meta.fights to limit the table to one
+ *   fight; null for the whole session.
+ */
+export function buildCombatTable(data, { showNPCs = false, fight = null } = {}) {
   const groups = new Map();
+  const fights = data.meta.fights ?? [];
+  const visible = (identity) => identity && !(identity.t === "npc" && !showNPCs);
+
+  // Everyone who was in a fight gets a row, even with nothing to show for it. A PC who
+  // spent the fight unconscious is a real zero, and dropping them would inflate averages.
+  const scope = fight === null ? fights.map((_, i) => i) : [fight];
+  for (const i of scope) {
+    for (const uuid of Object.keys(fights[i]?.c ?? {})) {
+      const identity = data.actors[uuid];
+      if (visible(identity)) getCombatGroup(groups, uuid, identity).fights.add(i);
+    }
+  }
+
+  // Marks a group as present in the event's fight, for its rounds-fought total.
+  const touch = (g, e) => {
+    if (e.f !== undefined) g.fights.add(e.f);
+    return g;
+  };
 
   for (const e of data.events) {
-    // Attacks avoided belong to whoever was shot at, so they need no source at all.
-    if (e.e === EVENT_TYPE.MISS) {
+    if (fight !== null && e.f !== fight) continue;
+
+    // Attacks received and avoided belong to whoever was shot at, so need no source.
+    if (e.e === EVENT_TYPE.MISS || e.e === EVENT_TYPE.HIT) {
       const identity = data.actors[e.g];
-      if (identity && !(identity.t === "npc" && !showNPCs)) {
-        getCombatGroup(groups, e.g, identity).avoided += 1;
+      if (visible(identity)) {
+        const g = touch(getCombatGroup(groups, e.g, identity), e);
+        g.attacked += 1;
+        if (e.e === EVENT_TYPE.MISS) g.avoided += 1;
       }
       continue;
     }
@@ -98,8 +128,8 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
     // Damage taken / healing received / downed always attribute to the target, regardless
     // of whether the source ever got resolved - "damage-taken is always accurate."
     const targetIdentity = data.actors[e.g];
-    if (targetIdentity && !(targetIdentity.t === "npc" && !showNPCs)) {
-      const g = getCombatGroup(groups, e.g, targetIdentity);
+    if (visible(targetIdentity)) {
+      const g = touch(getCombatGroup(groups, e.g, targetIdentity), e);
       g.dmgTaken += e.dmg ?? 0;
       g.healRecv += e.heal ?? 0;
       if (e.dn) g.downed += 1;
@@ -113,10 +143,12 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
     // friendly fire) is excluded from the dealer's total but was already counted above.
     if (e.s && e.s !== MANUAL_SOURCE) {
       const sourceIdentity = data.actors[e.s];
-      if (sourceIdentity && !(sourceIdentity.t === "npc" && !showNPCs)) {
-        const g = getCombatGroup(groups, e.s, sourceIdentity);
+      if (visible(sourceIdentity)) {
+        const g = touch(getCombatGroup(groups, e.s, sourceIdentity), e);
         if (!e.pvp) {
           g.dmgDealt += e.dmg ?? 0;
+          // Damage per round only counts damage inside fights, over rounds of those fights.
+          if (e.f !== undefined) g.fightDmg += e.dmg ?? 0;
           // Follows damage-dealt: friendly fire is excluded, so a big hit on an ally
           // doesn't become someone's best blow of the night.
           g.maxDealt = Math.max(g.maxDealt, e.dmg ?? 0);
@@ -131,20 +163,28 @@ export function buildCombatTable(data, { showNPCs = false } = {}) {
     }
   }
 
-  const rows = [...groups.values()].map((g) => ({
-    name: g.name,
-    isPC: g.isPC,
-    dmgDealt: g.dmgDealt,
-    maxDealt: g.maxDealt,
-    dmgTaken: g.dmgTaken,
-    maxTaken: g.maxTaken,
-    healGiven: g.healGiven,
-    healRecv: g.healRecv,
-    thpGiven: g.thpGiven,
-    downed: g.downed,
-    kills: g.kills,
-    avoided: g.avoided
-  }));
+  const rows = [...groups.values()].map((g) => {
+    const rounds = [...g.fights].reduce((total, i) => total + (fights[i]?.r ?? 0), 0);
+    return {
+      key: g.key,
+      name: g.name,
+      isPC: g.isPC,
+      dmgDealt: g.dmgDealt,
+      maxDealt: g.maxDealt,
+      dmgTaken: g.dmgTaken,
+      maxTaken: g.maxTaken,
+      healGiven: g.healGiven,
+      healRecv: g.healRecv,
+      thpGiven: g.thpGiven,
+      downed: g.downed,
+      kills: g.kills,
+      attacked: g.attacked,
+      avoided: g.avoided,
+      fightDmg: g.fightDmg,
+      rounds,
+      dpr: rounds ? g.fightDmg / rounds : null
+    };
+  });
 
   return sortTable(rows, "dmgDealt", "desc");
 }
@@ -174,8 +214,116 @@ export function buildPartyTotals(rows) {
     thpGiven: sum("thpGiven"),
     downed: sum("downed"),
     kills: sum("kills"),
-    avoided: sum("avoided")
+    attacked: sum("attacked"),
+    avoided: sum("avoided"),
+    // The party's output per round is each member's per-round output added together.
+    dpr: pcs.some((r) => r.dpr !== null) ? sum("dpr") : null
   };
+}
+
+/**
+ * Everyone who took part: one row per PC, and one per NPC name with how many of that name
+ * there were, so fifteen zombies are "Zombie, 15". Rows carry the same `key` as the stat
+ * tables, so any stat row can be joined to its class, level or CR.
+ *
+ * @param {object} [options]
+ * @param {number|null} [options.fight]  Only those present in this fight: its combatants,
+ *   plus anyone involved in one of its events.
+ */
+export function buildRoster(data, { showNPCs = true, fight = null } = {}) {
+  let present = null;
+  if (fight !== null) {
+    present = new Set(Object.keys(data.meta.fights?.[fight]?.c ?? {}));
+    for (const e of data.events) {
+      if (e.f !== fight) continue;
+      for (const uuid of [e.a, e.g, e.s]) if (uuid) present.add(uuid);
+    }
+  }
+
+  const entries = new Map();
+  const add = (uuid, identity) => {
+    if (present && !present.has(uuid)) return;
+    if (identity.t === "npc" && !showNPCs) return;
+    const key = identity.t === "pc" ? uuid : `npc:${identity.n}`;
+    let r = entries.get(key);
+    if (!r) {
+      r = { key, name: identity.n, isPC: identity.t === "pc", uuids: new Set(), crs: [], acs: [], identity };
+      entries.set(key, r);
+    }
+    r.uuids.add(uuid);
+    if (Number.isFinite(identity.cr)) r.crs.push(identity.cr);
+    if (Number.isFinite(identity.ac)) r.acs.push(identity.ac);
+  };
+
+  for (const [uuid, identity] of Object.entries(data.actors)) add(uuid, identity);
+  // Sessions from before 0.6 only remember idle combatants by name; still worth counting.
+  for (const [uuid, name] of Object.entries(data.meta.npcSeen ?? {})) {
+    if (!data.actors[uuid]) add(uuid, { n: name, t: "npc" });
+  }
+
+  const rows = [...entries.values()].map((r) => {
+    const classes = r.isPC ? r.identity.cls ?? [] : [];
+    return {
+      key: r.key,
+      name: r.name,
+      isPC: r.isPC,
+      player: r.isPC ? r.identity.pl ?? "" : "",
+      level: r.isPC ? r.identity.lv ?? null : null,
+      primaryClass: classes[0]?.n ?? "",
+      subclass: classes[0]?.s ?? "",
+      classes: classes.map((c) => `${c.n} ${c.l}`).join(" / "),
+      cr: r.crs.length ? Math.min(...r.crs) : null,
+      crLabel: rangeLabel(r.crs, formatCR),
+      xp: r.isPC ? null : r.identity.xp ?? null,
+      count: r.uuids.size,
+      ac: r.acs.length ? Math.min(...r.acs) : null,
+      acLabel: rangeLabel(r.acs, String)
+    };
+  });
+
+  return sortTable(rows, "name", "asc");
+}
+
+/**
+ * One summary per fight: how long it ran, who was in it, and what the party was up
+ * against. The enemy side is what makes fights comparable - "the rogue did the most
+ * damage" means little if all of the rogue's fights were easy.
+ */
+export function buildFightSummaries(data) {
+  const fights = data.meta.fights ?? [];
+  return fights.map((f, index) => {
+    const pcs = buildRoster(data, { fight: index }).filter((r) => r.isPC);
+    const levels = pcs.map((r) => r.level).filter(Number.isFinite);
+
+    const foes = Object.entries(f.c ?? {})
+      .filter(([, hostile]) => hostile)
+      .map(([uuid]) => data.actors[uuid])
+      .filter(Boolean);
+    const foeCounts = new Map();
+    for (const foe of foes) foeCounts.set(foe.n, (foeCounts.get(foe.n) ?? 0) + 1);
+
+    const end = f.e ?? f.last;
+    return {
+      index,
+      number: index + 1,
+      rounds: f.r,
+      minutes: Math.round(Math.max(0, end - f.s) / 60),
+      partySize: pcs.length,
+      avgPartyLevel: levels.length ? mean(levels) : null,
+      foes: foes.length,
+      foeCR: foes.reduce((total, foe) => total + (foe.cr ?? 0), 0),
+      foeXP: foes.reduce((total, foe) => total + (foe.xp ?? 0), 0),
+      foeList: [...foeCounts].map(([name, count]) => (count > 1 ? `${name} ×${count}` : name)).join(", ")
+    };
+  });
+}
+
+/** "2" when every value agrees, "1–3" when they differ, "" when there are none. */
+function rangeLabel(values, format) {
+  if (!values.length) return "";
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  return lo === hi ? format(lo) : `${format(lo)}–${format(hi)}`;
 }
 
 export function sortTable(rows, key, dir = "desc") {
@@ -191,7 +339,7 @@ function getRollGroup(groups, uuid, identity) {
   const key = identity.t === "pc" ? uuid : `npc:${identity.n}`;
   let g = groups.get(key);
   if (!g) {
-    g = { name: identity.n, isPC: identity.t === "pc", allFaces: [], keptFaces: [], nat20: 0, nat1: 0, passes: 0, fails: 0 };
+    g = { key, name: identity.n, isPC: identity.t === "pc", allFaces: [], keptFaces: [], nat20: 0, nat1: 0, passes: 0, fails: 0 };
     groups.set(key, g);
   }
   return g;
@@ -202,8 +350,12 @@ function getCombatGroup(groups, uuid, identity) {
   let g = groups.get(key);
   if (!g) {
     g = {
+      key,
       name: identity.n,
       isPC: identity.t === "pc",
+      fights: new Set(), // indexes of the fights this row took part in
+      fightDmg: 0,
+      attacked: 0,
       dmgDealt: 0,
       maxDealt: 0,
       dmgTaken: 0,

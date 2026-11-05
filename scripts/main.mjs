@@ -9,6 +9,7 @@ import { registerChatControls } from "./chat-controls.mjs";
 import { registerJournalControls } from "./journal-controls.mjs";
 import { SessionPrompt } from "./session-prompt.mjs";
 import { IdleEnd } from "./idle-end.mjs";
+import { StatsUploader } from "./upload.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -74,6 +75,9 @@ function initializeModule() {
   // registrar self-gates, so both are called unconditionally.
   registerChatControls(store, attribution);
   registerJournalControls(store, attribution);
+
+  // Before IdleEnd, so a session that auto-ends at login is uploaded like any other.
+  new StatsUploader(store, attribution).registerHooks();
 
   // Last: it may end a session left running since a previous login, and the controls above
   // should already be listening for that.

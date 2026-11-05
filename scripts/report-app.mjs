@@ -1,5 +1,5 @@
 import { MODULE_ID, MODULE_TITLE, ROLL_CATEGORY, ROLL_TAG, HOOK, MANUAL_SOURCE, NOT_TRACKED } from "./constants.mjs";
-import { buildRollTable, buildInitiativeTable, buildCombatTable, buildPartyTotals, sortTable } from "./aggregator.mjs";
+import { buildRollTable, buildInitiativeTable, buildCombatTable, buildPartyTotals, buildRoster, sortTable } from "./aggregator.mjs";
 import { exportSessionCSV } from "./csv-export.mjs";
 
 const ROLL_COLUMNS = [
@@ -26,6 +26,7 @@ const COMBAT_COLUMNS = [
   { key: "name", label: "Character" },
   { key: "dmgDealt", label: "Dmg Dealt" },
   { key: "maxDealt", label: "Max Dealt" },
+  { key: "dpr", label: "Dmg/Round" },
   { key: "dmgTaken", label: "Dmg Taken" },
   { key: "maxTaken", label: "Max Taken" },
   { key: "healGiven", label: "Heal Given" },
@@ -33,10 +34,25 @@ const COMBAT_COLUMNS = [
   { key: "thpGiven", label: "Temp HP Given" },
   { key: "downed", label: "Downed" },
   { key: "kills", label: "Kills" },
-  { key: "avoided", label: "Attacks Avoided" }
+  { key: "attacked", label: "Attacked" },
+  { key: "avoided", label: "Avoided" }
+];
+
+// `display` names the field shown in place of the sort key (CR sorts by number, shows "1/4");
+// `npcOnly` blanks the cell on PC rows.
+const PARTY_COLUMNS = [
+  { key: "name", label: "Character" },
+  { key: "player", label: "Player" },
+  { key: "level", label: "Level" },
+  { key: "classes", label: "Class" },
+  { key: "subclass", label: "Subclass" },
+  { key: "cr", label: "CR", display: "crLabel" },
+  { key: "count", label: "Count", npcOnly: true },
+  { key: "ac", label: "AC", display: "acLabel" }
 ];
 
 const TAB_DEFS = [
+  { id: "party", label: "Party", kind: "party", columns: PARTY_COLUMNS, defaultSort: "name" },
   { id: "attacks", label: "Attacks", kind: "roll", category: ROLL_CATEGORY.ATTACK, columns: ROLL_COLUMNS, defaultSort: "meanKept" },
   { id: "saves", label: "Saves", kind: "roll", category: ROLL_CATEGORY.SAVE, columns: ROLL_COLUMNS, defaultSort: "meanKept", hasSpecialSavesToggle: true },
   { id: "checks", label: "Checks", kind: "roll", category: ROLL_CATEGORY.CHECK, columns: ROLL_COLUMNS, defaultSort: "meanKept" },
@@ -74,6 +90,7 @@ function formatCell(key, value) {
   if (value === null || value === undefined) return "";
   if (key === "meanKept" || key === "meanAll" || key === "mean") return value.toFixed(1);
   if (key === "passRate") return value.toFixed(2);
+  if (key === "dpr") return value.toFixed(1);
   return String(value);
 }
 
@@ -86,7 +103,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     classes: ["cgss-report"],
     tag: "div",
     window: { title: MODULE_TITLE, icon: "fa-solid fa-chart-column", resizable: true },
-    position: { width: 820, height: 640 }
+    position: { width: 900, height: 640 }
   };
 
   static PARTS = {
@@ -96,9 +113,10 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
 
   #store;
   #attribution;
-  #activeTab = "attacks";
+  #activeTab = "party";
   #showNPCs = false;
   #excludeSpecialSaves = false;
+  #combatFight = null; // index into meta.fights, or null for the whole session
   #tables = {};
   #hasComputed = false;
   #sortState = {};
@@ -120,7 +138,9 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const toDisplayRow = (r) => ({
       isPC: r.isPC,
       dangerNat1: (r.nat1 ?? 0) >= 3,
-      cells: Object.fromEntries(tab.columns.map((c) => [c.key, formatCell(c.key, r[c.key])]))
+      cells: Object.fromEntries(
+        tab.columns.map((c) => [c.key, c.npcOnly && r.isPC ? "" : formatCell(c.key, r[c.display ?? c.key])])
+      )
     });
 
     // PCs and NPCs are kept apart rather than interleaved by score. Filtering preserves the
@@ -172,6 +192,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       showNPCs: this.#showNPCs,
       excludeSpecialSaves: this.#excludeSpecialSaves,
       showSpecialSavesToggle: !!tab.hasSpecialSavesToggle,
+      fightOptions: tab.kind === "combat" ? this.#fightOptions() : [],
       columns: tab.columns,
       rows,
       totals
@@ -183,21 +204,39 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     this.#tables = {};
     this.#hasComputed = true;
     if (!data) return;
+    // The window outlives sessions; a fight picked in the last one may not exist in this one.
+    if (this.#combatFight !== null && !data.meta.fights?.[this.#combatFight]) this.#combatFight = null;
 
     for (const tab of TAB_DEFS) {
       let rows;
       if (tab.kind === "roll") {
         const excludeTags = tab.hasSpecialSavesToggle && this.#excludeSpecialSaves ? [ROLL_TAG.DEATH_SAVE, ROLL_TAG.CONCENTRATION] : [];
         rows = buildRollTable(data, tab.category, { showNPCs: this.#showNPCs, excludeTags });
+      } else if (tab.kind === "party") {
+        rows = buildRoster(data, { showNPCs: this.#showNPCs });
       } else if (tab.kind === "initiative") {
         rows = buildInitiativeTable(data, { showNPCs: this.#showNPCs });
       } else {
-        rows = buildCombatTable(data, { showNPCs: this.#showNPCs });
+        rows = buildCombatTable(data, { showNPCs: this.#showNPCs, fight: this.#combatFight });
       }
 
       const sort = this.#sortState[tab.id];
       this.#tables[tab.id] = sort ? sortTable(rows, sort.key, sort.dir) : rows;
     }
+  }
+
+  /** "All fights" plus one entry per fight, for the Combat tab's picker. Empty with no fights. */
+  #fightOptions() {
+    const fights = this.#store.data?.meta.fights ?? [];
+    if (!fights.length) return [];
+    return [
+      { value: "", label: "All fights", selected: this.#combatFight === null },
+      ...fights.map((f, i) => ({
+        value: String(i),
+        label: `Fight ${i + 1} (${f.r} ${f.r === 1 ? "round" : "rounds"})`,
+        selected: this.#combatFight === i
+      }))
+    ];
   }
 
   #queueContext() {
@@ -294,6 +333,11 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     root.querySelector('[data-cgss-action="toggleSpecialSaves"]')?.addEventListener("change", (ev) => {
       this.#excludeSpecialSaves = ev.target.checked;
+      this.#recompute();
+      this.render({ parts: ["main"] });
+    });
+    root.querySelector('[data-cgss-action="selectFight"]')?.addEventListener("change", (ev) => {
+      this.#combatFight = ev.target.value === "" ? null : Number(ev.target.value);
       this.#recompute();
       this.render({ parts: ["main"] });
     });
