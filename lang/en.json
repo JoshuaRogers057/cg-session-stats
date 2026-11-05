@@ -10,7 +10,6 @@
   "CGSS.Share.Body": "Session stats are shared with the Champions Guild for balance research.",
   "CGSS.Share.Detail": "When a session ends, its report is sent: the session and world names, your name, player and character names, classes, levels, monster CRs, and the roll and combat numbers. Nothing else about your world is sent. You can turn this off at any time in the module settings.",
   "CGSS.Share.Ok": "OK",
-  "CGSS.Share.TurnOff": "Turn Off Sharing",
   "CGSS.Share.Failed": "Session Stats couldn't share the last session's stats. It will try again automatically.",
 
   "CGSS.AutoEnd.Notice": "Session \"{name}\" was ended automatically after {hours} hours with no rolls. It's ready to export from the report window.",

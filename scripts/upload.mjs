@@ -156,15 +156,12 @@ export class StatsUploader {
     if (!game.settings.get(MODULE_ID, SETTING.SHARE_STATS)) return;
     await game.settings.set(MODULE_ID, SETTING.SHARE_NOTICE_SHOWN, true);
 
-    const choice = await foundry.applications.api.DialogV2.wait({
+    // A notice, not a choice: turning sharing off lives in the module settings, as it says.
+    await foundry.applications.api.DialogV2.prompt({
       window: { title: game.i18n.localize("CGSS.Share.Title"), icon: "fa-solid fa-chart-column" },
       content: `<p>${game.i18n.localize("CGSS.Share.Body")}</p><p>${game.i18n.localize("CGSS.Share.Detail")}</p>`,
-      buttons: [
-        { action: "ok", icon: "fa-solid fa-check", label: game.i18n.localize("CGSS.Share.Ok"), default: true },
-        { action: "off", icon: "fa-solid fa-ban", label: game.i18n.localize("CGSS.Share.TurnOff") }
-      ],
+      ok: { icon: "fa-solid fa-check", label: game.i18n.localize("CGSS.Share.Ok") },
       rejectClose: false
     });
-    if (choice === "off") await game.settings.set(MODULE_ID, SETTING.SHARE_STATS, false);
   }
 }

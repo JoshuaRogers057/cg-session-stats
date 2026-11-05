@@ -72,7 +72,7 @@ The queues update live. The stat tables refresh only when you open the window or
 
 ## Sharing with the Champions Guild
 
-When a session ends, Session Stats sends the same tables to the Champions Guild for balance research, where each session becomes its own spreadsheet. There is nothing to set up and no account to create. The first time the module runs in a world it tells the GM, who can turn sharing off right there or later in the settings.
+When a session ends, Session Stats sends the same tables to the Champions Guild for balance research, where each session becomes its own spreadsheet. There is nothing to set up and no account to create. The first time the module runs in a world it tells the GM, who can turn sharing off in the module settings.
 
 What is sent: the session and world names, the GM's name, player and character names, classes, levels, monster CRs, and the roll and combat numbers in the report. Nothing else about the world is sent. If a session can't be sent (no internet, or the GM was logged out when it auto-ended), it is kept and sent at the next login, or within half an hour while the GM stays connected. A session that has been sent counts as exported, so starting the next one doesn't warn about it.
 
