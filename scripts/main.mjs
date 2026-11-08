@@ -5,6 +5,8 @@ import { SessionStore } from "./session-store.mjs";
 import { AttributionQueue } from "./attribution.mjs";
 import { RollCapture } from "./roll-capture.mjs";
 import { HPCapture } from "./hp-capture.mjs";
+import { FightCapture } from "./fight-capture.mjs";
+import { ConsumableCapture } from "./consumable-capture.mjs";
 import { registerChatControls } from "./chat-controls.mjs";
 import { registerJournalControls } from "./journal-controls.mjs";
 import { SessionPrompt } from "./session-prompt.mjs";
@@ -69,6 +71,8 @@ function initializeModule() {
   store.initialize();
   rollCapture.registerHooks();
   hpCapture.registerHooks();
+  new FightCapture(store).registerHooks();
+  new ConsumableCapture(store).registerHooks();
   sessionPrompt.registerHooks();
 
   // GM launches the report from the chat controls; players from the Journal tab. Each

@@ -5,7 +5,14 @@ export const EVENT_TYPE = {
   ROLL: 1,
   HP: 2,
   MISS: 3, // an attack targeted this actor and failed to connect
-  HIT: 4 // an attack targeted this actor and connected
+  HIT: 4, // an attack targeted this actor and connected
+  // Added in 0.7 for the Champions Guild balance research (the website rebuilds each fight
+  // from these). The report tables ignore them.
+  REMOVED: 5, // a combatant left a live fight (deleted token or removed from the tracker)
+  DEATH: 6, // a PC died: third failed death save, or the Dead condition
+  STAT: 7, // a combatant's stat block was edited mid-fight (max HP, AC, CR, abilities, items)
+  USE: 8, // a consumable was used (potion drunk, scroll read)
+  DROP: 9 // a consumable's count went down, or it was deleted, outside a use
 };
 
 export const ROLL_CATEGORY = {

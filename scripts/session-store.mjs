@@ -1,6 +1,6 @@
 import { MODULE_ID, SETTING, EVENT_TYPE, ROLL_CATEGORY, HOOK, debugLog } from "./constants.mjs";
 import { relayRecordEvent } from "./socket.mjs";
-import { describeActor } from "./actor-info.mjs";
+import { describeActor, hpSnapshot } from "./actor-info.mjs";
 import { resolveAttributedActor } from "./actor-resolve.mjs";
 
 const FLUSH_DEBOUNCE_MS = 3000;
@@ -18,10 +18,10 @@ const BACKFILL_WINDOW_MS = 60000;
 // without ending the combat - so later events stop being credited to it.
 const FIGHT_STALE_SECONDS = 30 * 60;
 
-function freshSessionData(name) {
+function freshSessionData(name, { guild = true } = {}) {
   const now = Math.floor(Date.now() / 1000);
   return {
-    v: 1,
+    v: 2,
     meta: {
       id: foundry.utils.randomID(), // identifies the session to the upload receiver
       name,
@@ -30,14 +30,32 @@ function freshSessionData(name) {
       exported: false,
       combats: [],
       // One entry per combat that ran this session, in order. Events carry `f`, an index
-      // into this list. { id, s, e, last, r, c } - combat id; start, end and last turn
-      // change in session seconds; rounds; combatants as uuid -> 1 hostile / 0 otherwise.
+      // into this list. { id, s, e, last, r, c, hp } - combat id; start, end and last turn
+      // change in session seconds; rounds; combatants as uuid -> 1 hostile / 0 otherwise;
+      // hp as uuid -> [hp, max, temp, round] when each combatant first joined.
       fights: [],
-      npcSeen: {} // uuid -> name, for actors that appeared in a combat this session
+      npcSeen: {}, // uuid -> name, for actors that appeared in a combat this session
+      // Who ran it and where, so the website can match the session to its quest.
+      gm: { id: game.user.id, name: game.user.name },
+      cg: guild ? 1 : 0, // the "Champions Guild game" box on the start dialog
+      world: { id: game.world.id, title: game.world.title },
+      host: window.location.host,
+      rules: rulesVersion(),
+      dnd5e: game.system.version,
+      mv: game.modules.get(MODULE_ID)?.version ?? ""
     },
     actors: {}, // uuid -> { n: name, t: "pc"|"npc" }
     events: []
   };
+}
+
+/** "modern" (2024 rules) or "legacy" (2014). */
+function rulesVersion() {
+  try {
+    return game.settings.get("dnd5e", "rulesVersion") ?? "";
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -146,6 +164,10 @@ export class SessionStore {
     if (type === EVENT_TYPE.ROLL) this.#ingestRoll(raw);
     else if (type === EVENT_TYPE.HP) this.#ingestHP(raw);
     else if (type === EVENT_TYPE.MISS || type === EVENT_TYPE.HIT) this.#ingestAttacked(type, raw);
+    else if (type === EVENT_TYPE.REMOVED) this.#ingestRemoved(raw);
+    else if (type === EVENT_TYPE.DEATH) this.#ingestDeath(raw);
+    else if (type === EVENT_TYPE.STAT) this.#ingestStat(raw);
+    else if (type === EVENT_TYPE.USE || type === EVENT_TYPE.DROP) this.#ingestConsumable(type, raw);
     else return debugLog("Dropped event, unknown type", payload);
 
     this.#flush();
@@ -165,6 +187,10 @@ export class SessionStore {
       p: raw.pass ?? null,
       ...(raw.tag ? { x: raw.tag } : {})
     };
+    // Everything added to the kept d20 (the roll's total minus that face), and the DC it was
+    // rolled against when known: together they say how likely a pass was, i.e. how lucky.
+    if (Number.isFinite(raw.bonus)) event.b = raw.bonus;
+    if (Number.isFinite(raw.dc)) event.dc = raw.dc;
 
     // dnd5e sets no target DC on ability/skill/tool checks, so the system never reports
     // pass/fail for them and they would silently contribute nothing to the pass-rate
@@ -186,6 +212,16 @@ export class SessionStore {
     const target = this.#resolveActor(raw.targetUuid);
     if (!target) return debugLog("Dropped attack, target not trackable this session", raw);
     const event = { e: type, t: this.#elapsedNow(), g: target.uuid };
+    // Expected-vs-actual hit chance (0.7): the attacker's bonus against this target's AC, and
+    // advantage (1) or disadvantage (-1). The attacker stays out of `a` on purpose: `a` means
+    // "the roller" to the report tables.
+    if (raw.attackerUuid) {
+      const attacker = this.#resolveActor(raw.attackerUuid);
+      if (attacker) event.by = attacker.uuid;
+    }
+    if (Number.isFinite(raw.bonus)) event.b = raw.bonus;
+    if (Number.isFinite(raw.ac)) event.ac = raw.ac;
+    if (raw.mode) event.m = raw.mode;
     this.#tagFight(event, target.uuid);
     this.#data.events.push(event);
   }
@@ -219,10 +255,131 @@ export class SessionStore {
     if (raw.pvp) event.pvp = 1;
     if (raw.downed) event.dn = 1;
     if (queued && !sourceUuid) event.q = 1;
+    // Changed by hand rather than by a Midi workflow. Unlike `q`, this stays when the GM
+    // later credits the change to someone: the website treats hand edits left as Manual or
+    // Not tracked as possible fudges, and needs to know which changes started out manual.
+    if (!raw.sourceUuid) event.man = 1;
+    // HP, temp HP and max HP after the change, so each combatant's HP can be followed
+    // through a fight without replaying every change. `alt` = these belong to another body
+    // (a wild shape or summon credited to its owner), not the credited actor's own sheet.
+    if (Number.isFinite(raw.hpAfter)) event.h = raw.hpAfter;
+    if (Number.isFinite(raw.tempAfter)) event.ht = raw.tempAfter;
+    if (Number.isFinite(raw.maxAfter)) event.mx = raw.maxAfter;
+    if (raw.otherBody) event.alt = 1;
     this.#tagFight(event, target.uuid, sourceUuid);
 
     this.#data.events.push(event);
     if (event.q) Hooks.callAll(HOOK.QUEUE_CHANGED);
+  }
+
+  /**
+   * The fight this actor is in right now, by index, or null. Only fights still running
+   * count, and only ones that have the actor on their roster.
+   */
+  #liveFightOf(uuid) {
+    const fights = this.#data?.meta.fights ?? [];
+    const now = this.#elapsedNow();
+    for (let i = fights.length - 1; i >= 0; i--) {
+      const f = fights[i];
+      if (f.e !== null || now - f.last > FIGHT_STALE_SECONDS) continue;
+      if (uuid in f.c) return i;
+    }
+    return null;
+  }
+
+  /** Accepts an actor already known this session even if it no longer exists (a deleted token). */
+  #knownOrResolve(uuid) {
+    if (!uuid) return null;
+    if (this.#data.actors[uuid]) return { uuid };
+    return this.#resolveActor(uuid);
+  }
+
+  /**
+   * A combatant left a live fight: their token was deleted (usually a dead monster cleared
+   * off the map) or they were taken off the tracker. Recorded with their HP at that moment
+   * and the round, because the token - and with it everything about them - is about to go.
+   * One record per combatant per fight, however many hooks report the same removal.
+   */
+  #ingestRemoved(raw) {
+    const who = this.#knownOrResolve(raw.actorUuid);
+    if (!who) return debugLog("Dropped removal, actor unknown", raw);
+    const f = this.#liveFightOf(who.uuid);
+    if (f === null) return;
+    const already = this.#data.events.some((e) => e.e === EVENT_TYPE.REMOVED && e.g === who.uuid && e.f === f);
+    if (already) return;
+
+    // A fallback report (after the token was gone) has no HP of its own: use the last HP
+    // this combatant was seen at.
+    let hp = Array.isArray(raw.hp) ? raw.hp : null;
+    if (!hp) hp = this.#lastKnownHp(who.uuid, f);
+
+    const event = { e: EVENT_TYPE.REMOVED, t: this.#elapsedNow(), g: who.uuid, f };
+    if (hp) event.hp = hp;
+    if (Number.isFinite(raw.round)) event.r = raw.round;
+    this.#data.events.push(event);
+  }
+
+  /** [hp, max, temp] from the latest HP change in this fight, else from when they joined. */
+  #lastKnownHp(uuid, f) {
+    const events = this.#data.events;
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e.e === EVENT_TYPE.HP && e.g === uuid && !e.alt && Number.isFinite(e.h)) return [e.h, e.mx ?? 0, e.ht ?? 0];
+    }
+    const joined = this.#data.meta.fights[f]?.hp?.[uuid];
+    return joined ? joined.slice(0, 3) : null;
+  }
+
+  /** A PC died. `how`: "saves" (third failed death save) or "status" (the Dead condition). */
+  #ingestDeath(raw) {
+    const who = this.#knownOrResolve(raw.actorUuid);
+    if (!who) return debugLog("Dropped death, actor unknown", raw);
+    const now = this.#elapsedNow();
+    // Both signals usually fire for the same death (Midi marks a PC dead on the third
+    // failure), so a second report within a minute is the same death.
+    const recent = this.#data.events.some((e) => e.e === EVENT_TYPE.DEATH && e.g === who.uuid && now - e.t < 60);
+    if (recent) return;
+    const event = { e: EVENT_TYPE.DEATH, t: now, g: who.uuid, how: raw.how ?? "" };
+    this.#tagFight(event, who.uuid);
+    this.#data.events.push(event);
+  }
+
+  /**
+   * A stat block edited during a live fight: the signal that a GM adjusted a fight on the
+   * fly. Kept only for combatants of a running fight; edits between fights are prep.
+   * `k` names what changed (hp.max, ac, cr, abilities, bonuses, item); `from`/`to` when the
+   * value can be compared; `n` an item's name; `p` the changed paths; `auto` = the update
+   * came from a Midi workflow (automation, such as a max-HP drain), not a person.
+   */
+  #ingestStat(raw) {
+    const who = this.#knownOrResolve(raw.actorUuid);
+    if (!who) return;
+    const f = this.#liveFightOf(who.uuid);
+    if (f === null) return;
+    const event = { e: EVENT_TYPE.STAT, t: this.#elapsedNow(), g: who.uuid, f, k: String(raw.key ?? "") };
+    if (raw.from !== undefined) event.from = raw.from;
+    if (raw.to !== undefined) event.to = raw.to;
+    if (raw.itemName) event.n = String(raw.itemName).slice(0, 100);
+    if (Array.isArray(raw.paths) && raw.paths.length) event.p = raw.paths.slice(0, 8).map(String);
+    if (raw.auto) event.auto = 1;
+    this.#data.events.push(event);
+  }
+
+  /**
+   * A consumable used (USE) or one whose count dropped outside a use (DROP: given away,
+   * dropped, deleted). The website pairs these with the character's Brought list at quest
+   * close-out. `n` item name, `st` consumable type (potion, scroll...), `qty` how many went,
+   * `ok` on a USE = the use itself took one (spent a charge or the item).
+   */
+  #ingestConsumable(type, raw) {
+    const who = this.#resolveActor(raw.actorUuid);
+    if (!who) return debugLog("Dropped consumable event, actor not trackable", raw);
+    const event = { e: type, t: this.#elapsedNow(), a: who.uuid, n: String(raw.itemName ?? "").slice(0, 100) };
+    if (raw.subtype) event.st = String(raw.subtype);
+    if (Number.isFinite(raw.count) && raw.count > 0) event.qty = raw.count;
+    if (raw.consumed) event.ok = 1;
+    this.#tagFight(event, who.uuid);
+    this.#data.events.push(event);
   }
 
   /**
@@ -289,7 +446,7 @@ export class SessionStore {
    * Matches on actor plus the exact dice faces, newest first, within a short window.
    * Returns true if an event was amended.
    */
-  amendRoll({ actorUuid, faces, pass, tag }, windowSeconds = 20) {
+  amendRoll({ actorUuid, faces, pass, tag, dc }, windowSeconds = 20) {
     if (!game.user.isGM || !this.#data) return false;
 
     const now = this.#elapsedNow();
@@ -303,6 +460,7 @@ export class SessionStore {
       if (JSON.stringify(e.d) !== wanted) continue;
 
       if (tag !== undefined) e.x = tag;
+      if (Number.isFinite(dc) && !Number.isFinite(e.dc)) e.dc = dc;
       if (pass !== undefined && pass !== null) {
         e.p = pass;
         delete e.pq; // settled by the system, so it no longer needs the GM
@@ -382,6 +540,15 @@ export class SessionStore {
       const hostile = combatant.token?.disposition === CONST.TOKEN_DISPOSITIONS.HOSTILE ? 1 : 0;
       // Never downgraded: an enemy whose summon is friendly-flagged stays an enemy.
       fight.c[resolved.uuid] = Math.max(fight.c[resolved.uuid] ?? 0, hostile);
+
+      // HP the first time each combatant is seen in this fight, and the round they joined
+      // (reinforcements join late). Only for a combatant who is their own credited actor: a
+      // summon or wild shape is credited to its owner, whose HP this isn't.
+      fight.hp ??= {};
+      if (resolved.uuid === actor.uuid && !fight.hp[resolved.uuid]) {
+        const snap = hpSnapshot(actor);
+        if (snap) fight.hp[resolved.uuid] = [...snap, combat.round ?? 0];
+      }
     }
     this.#flush();
   }
@@ -417,9 +584,15 @@ export class SessionStore {
 
   // --- Lifecycle -----------------------------------------------------------
 
-  startSession(name) {
+  /**
+   * @param {string} name
+   * @param {object} [options]
+   * @param {boolean} [options.guild]  A Champions Guild game (the start dialog's box). Only
+   *   guild games are matched to quests and used for balance research on the website.
+   */
+  startSession(name, { guild = true } = {}) {
     if (!game.user.isGM) return;
-    this.#data = freshSessionData(name);
+    this.#data = freshSessionData(name, { guild });
     this.#replayBackfill();
     this.#writeNow();
     Hooks.callAll(HOOK.SESSION_STARTED);

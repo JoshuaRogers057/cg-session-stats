@@ -33,9 +33,25 @@ export function describeActor(actor) {
     if (Number.isFinite(cr)) info.cr = cr;
     const xp = actor.system?.details?.xp?.value;
     if (Number.isFinite(xp)) info.xp = xp;
+    // A monster with legendary actions counts as an elite (two bodies) in the Adventure
+    // Builder; a lair means its XP may be the higher in-lair figure.
+    const legendary = actor.system?.resources?.legact?.max;
+    if (Number.isFinite(legendary) && legendary > 0) info.leg = legendary;
+    if (actor.system?.resources?.lair?.value) info.lair = 1;
   }
 
   return info;
+}
+
+/**
+ * [hp, max, temp] right now. The website rebuilds every combatant's HP through a fight from
+ * this snapshot plus each HP change, so it can tell how close a fight came.
+ */
+export function hpSnapshot(actor) {
+  const hp = actor?.system?.attributes?.hp;
+  if (!hp) return null;
+  const n = (v) => (Number.isFinite(v) ? v : 0);
+  return [n(hp.value), n(hp.max), n(hp.temp)];
 }
 
 /**

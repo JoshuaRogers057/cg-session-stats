@@ -16,6 +16,13 @@ export async function openStartSessionDialog(store) {
       <label>${game.i18n.localize("CGSS.Session.Name")}</label>
       <input type="text" name="sessionName" value="${foundry.utils.escapeHTML(defaultSessionName())}" autofocus>
     </div>
+    <div class="form-group">
+      <label class="checkbox">
+        <input type="checkbox" name="guildGame" checked>
+        ${game.i18n.localize("CGSS.Session.Guild")}
+      </label>
+    </div>
+    <p class="cgss-hint">${game.i18n.localize("CGSS.Session.GuildHint")}</p>
     <p class="cgss-hint">${game.i18n.localize("CGSS.Session.Hint")}</p>`;
 
   return foundry.applications.api.DialogV2.prompt({
@@ -27,7 +34,9 @@ export async function openStartSessionDialog(store) {
       icon: "fa-solid fa-circle-play",
       callback: (event, button) => {
         const name = button.form.querySelector("input[name=sessionName]")?.value?.trim() || defaultSessionName();
-        store.startSession(name);
+        // Ticked unless the GM unticks it: almost every session is a guild game.
+        const guild = button.form.querySelector("input[name=guildGame]")?.checked !== false;
+        store.startSession(name, { guild });
       }
     },
     rejectClose: false

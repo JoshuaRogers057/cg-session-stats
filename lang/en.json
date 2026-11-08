@@ -27,6 +27,8 @@
 
   "CGSS.Session.StartTitle": "Start Session",
   "CGSS.Session.Name": "Session Name",
+  "CGSS.Session.Guild": "Champions Guild game",
+  "CGSS.Session.GuildHint": "Untick this for a game that isn't run for the Champions Guild. Its stats are still recorded, but it won't be matched to a guild quest.",
   "CGSS.Session.Hint": "Every character is tracked automatically. They appear in the report once they've rolled or been involved in something, so late arrivals need no setup.",
   "CGSS.Session.Confirm": "Start Session",
 

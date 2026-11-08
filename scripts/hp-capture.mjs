@@ -115,7 +115,13 @@ export class HPCapture {
       // "pvp" means same side, self included: excluded from the dealer's damage-dealt total
       // but still counted as damage taken, per the brief's friendly-fire rule.
       pvp: dmg > 0 && !!source && sameSide(source, target),
-      downed: dmg > 0 && prev.hp > 0 && newHP === 0
+      downed: dmg > 0 && prev.hp > 0 && newHP === 0,
+      // Where HP stands afterwards, so the website can follow it through a fight.
+      hpAfter: newHP,
+      tempAfter: newTemp,
+      maxAfter: actor.system.attributes.hp.max,
+      // A wild shape or summon credited to its owner: these numbers are the other body's.
+      otherBody: target.uuid !== actor.uuid
     });
   }
 

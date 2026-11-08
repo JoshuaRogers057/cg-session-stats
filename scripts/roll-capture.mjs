@@ -64,7 +64,12 @@ export class RollCapture {
     if (hitUuids.size > 0) pass = true;
     else if (targets.length > 0) pass = false;
 
-    this.#push(actor, ROLL_CATEGORY.ATTACK, faces, pass);
+    const bonus = bonusOf(roll, faces);
+    this.#push(actor, ROLL_CATEGORY.ATTACK, faces, pass, undefined, { bonus });
+
+    // Advantage or disadvantage, so the website's expected hit chance uses the right odds.
+    const mode = roll.hasAdvantage ? 1 : roll.hasDisadvantage ? -1 : 0;
+    const attackerUuid = resolveAttributedActor(actor).uuid;
 
     // Hits as well as misses, so the defender's side has a denominator: "avoided 6" means
     // little without knowing whether they were attacked 8 times or 40.
@@ -74,7 +79,14 @@ export class RollCapture {
       const targetActor = token?.actor;
       if (!targetActor) continue;
       const type = hitUuids.has(uuid) ? EVENT_TYPE.HIT : EVENT_TYPE.MISS;
-      this.store.recordEvent(type, { targetUuid: resolveAttributedActor(targetActor).uuid });
+      const ac = targetActor.system?.attributes?.ac?.value;
+      this.store.recordEvent(type, {
+        targetUuid: resolveAttributedActor(targetActor).uuid,
+        attackerUuid,
+        bonus,
+        ac: Number.isFinite(ac) ? ac : null,
+        mode
+      });
     }
   }
 
@@ -90,7 +102,10 @@ export class RollCapture {
     const hasTarget = Number.isFinite(roll.options?.target);
     const pass = hasTarget ? roll.isSuccess ?? null : null;
 
-    this.#push(actor, category, faces, pass, tag);
+    this.#push(actor, category, faces, pass, tag, {
+      bonus: bonusOf(roll, faces),
+      dc: hasTarget ? roll.options.target : null
+    });
   }
 
   /** Marks an already-recorded roll as a death save or concentration save. */
@@ -119,6 +134,8 @@ export class RollCapture {
     if (!details) return;
 
     const savedUuids = new Set([...(workflow.saves ?? [])].map(tokenUuid).filter(Boolean));
+    // The DC Midi compared against, which the roll itself often never saw.
+    const dc = [workflow.saveDC, workflow.activity?.save?.dc?.value].find(Number.isFinite) ?? null;
 
     for (const [uuid, detail] of Object.entries(details)) {
       const roll = detail?.saveRoll;
@@ -132,7 +149,8 @@ export class RollCapture {
       this.#amend({
         actorUuid: resolveAttributedActor(actor).uuid,
         faces: faces.faces,
-        pass: savedUuids.has(uuid)
+        pass: savedUuids.has(uuid),
+        dc
       });
     }
   }
@@ -152,7 +170,7 @@ export class RollCapture {
     this.#push(actor, ROLL_CATEGORY.INITIATIVE, faces, null);
   }
 
-  #push(actor, category, faces, pass, tag) {
+  #push(actor, category, faces, pass, tag, { bonus = null, dc = null } = {}) {
     const attributed = resolveAttributedActor(actor);
     this.store.recordEvent(EVENT_TYPE.ROLL, {
       actorUuid: attributed.uuid,
@@ -160,7 +178,9 @@ export class RollCapture {
       faces: faces.faces,
       keptIndex: faces.keptIndex,
       pass,
-      ...(tag ? { tag } : {})
+      ...(tag ? { tag } : {}),
+      ...(Number.isFinite(bonus) ? { bonus } : {}),
+      ...(Number.isFinite(dc) ? { dc } : {})
     });
   }
 
@@ -173,6 +193,13 @@ export class RollCapture {
 /** Token sets on the workflow are rebuilt from UUIDs, so compare by UUID not identity. */
 function tokenUuid(token) {
   return token?.document?.uuid ?? token?.uuid ?? null;
+}
+
+/** Everything the roll added to the d20 that counted: its total minus that face. */
+function bonusOf(roll, faces) {
+  const total = roll?.total;
+  const kept = faces?.faces?.[faces.keptIndex];
+  return Number.isFinite(total) && Number.isFinite(kept) ? total - kept : null;
 }
 
 function extractD20Faces(roll) {
