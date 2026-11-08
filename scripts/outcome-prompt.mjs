@@ -39,9 +39,8 @@ export class FightOutcomePrompt {
 
   async #ask(combatId) {
     const data = this.#store.data;
+    // Asked in every game, guild or not: the website can use non-guild fights for balance too.
     if (!data || !this.#store.isRecording) return;
-    // Balance research only uses guild games, so a home game is never asked.
-    if (data.meta.cg === 0) return;
     const fights = data.meta.fights ?? [];
     const index = fights.findLastIndex((f) => f.id === combatId);
     if (index < 0 || fights[index].o) return;
