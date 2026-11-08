@@ -1,34 +1,34 @@
-import { MODULE_ID, SETTING, HOOK, UPLOAD_URL, UPLOAD_SCHEMA, debugLog } from "./constants.mjs";
-import { buildExportTables } from "./export-tables.mjs";
+import { MODULE_ID, SETTING, HOOK, UPLOAD_URL, UPLOAD_KEY, UPLOAD_SCHEMA, debugLog } from "./constants.mjs";
 
 const RETRY_INTERVAL_MS = 30 * 60 * 1000;
-const MAX_QUEUED = 20;
+// Each queued item is a whole raw session (a few hundred KB at most), kept in a world
+// setting, so the queue stays short. In practice it holds one session for a few seconds.
+const MAX_QUEUED = 10;
 
 /**
- * Sends every finished session to the Champions Guild for balance research, with nothing
- * for the GM to set up: no sign-in, no account, no address to paste. The receiver is a
- * Google Apps Script web app that files each session as its own spreadsheet (see
- * receiver/README.md).
+ * Sends every finished session to the Champions Guild website for balance research, with
+ * nothing for the GM to set up: no sign-in, no account, no address or key to paste. The
+ * website keeps the raw session and builds every table from it (admins only), so new
+ * measures can be worked out later from sessions already sent.
  *
- * A session ends, its tables are built and queued, and the queue is sent. The queue lives
- * in a world setting, so a session that ended with the internet down - or by auto-end
- * while the GM was logged out - is not lost: it goes out on the next login, or within
- * half an hour while the GM stays connected. The receiver ignores a session it has
- * already filed, so a retry after a reply that never arrived is harmless.
+ * A session ends, it is queued, and the queue is sent. The queue lives in a world setting,
+ * so a session that ended with the internet down - or by auto-end while the GM was logged
+ * out - is not lost: it goes out on the next login, or within half an hour while the GM
+ * stays connected. The website replaces a session it already has, so a retry after a reply
+ * that never arrived is harmless. Anything left in the queue from 0.6 (tables for the old
+ * Google Sheets receiver) is refused by the website and dropped.
  *
  * The GM is told once, the first time this runs in a world, and can turn it off in the
  * module settings.
  */
 export class StatsUploader {
   #store;
-  #attribution;
   #sending = false;
   #sendAgain = false;
   #warned = false;
 
-  constructor(store, attribution) {
+  constructor(store) {
     this.#store = store;
-    this.#attribution = attribution;
   }
 
   registerHooks() {
@@ -58,18 +58,28 @@ export class StatsUploader {
   #buildPayload() {
     const meta = this.#store.data?.meta;
     if (!meta) return null;
-    // Sessions started before 0.6 have no id; give one so the receiver can still dedupe.
+    // Sessions started before 0.6 have no id; give one so the website can still dedupe.
     meta.id ??= foundry.utils.randomID();
     return {
+      key: UPLOAD_KEY,
       schema: UPLOAD_SCHEMA,
       sessionId: meta.id,
+      moduleVersion: game.modules.get(MODULE_ID)?.version ?? "",
       world: { id: game.world.id, title: game.world.title },
-      tables: buildExportTables(this.#store, this.#attribution)
+      server: window.location.host,
+      // Sessions started before 0.7 have no GM or guild flag of their own.
+      gm: meta.gm ?? { id: game.user.id, name: game.user.name },
+      guildGame: meta.cg === undefined ? null : !!meta.cg,
+      // A copy, so later edits to the live session (attributions settled after it ended)
+      // don't change what is queued; resending after such edits is a later session-end.
+      session: foundry.utils.deepClone(this.#store.data)
     };
   }
 
   #queue() {
-    return [...(game.settings.get(MODULE_ID, SETTING.UPLOAD_QUEUE)?.items ?? [])];
+    // Only this version's payloads: one left over from 0.6 (tables for Google Sheets, no
+    // key) would be refused for its missing key and retried forever, holding up the rest.
+    return (game.settings.get(MODULE_ID, SETTING.UPLOAD_QUEUE)?.items ?? []).filter((p) => p?.schema === UPLOAD_SCHEMA);
   }
 
   #saveQueue(items) {
@@ -116,20 +126,18 @@ export class StatsUploader {
   /** "sent", "dropped" (the receiver will never take it), or false to try again later. */
   async #post(payload) {
     try {
-      // text/plain keeps this a "simple" request with no CORS preflight, which Apps Script
-      // web apps cannot answer. The body is still JSON.
+      // text/plain keeps this a "simple" request with no CORS preflight (the key travels in
+      // the body for the same reason). The body is still JSON.
       const response = await fetch(UPLOAD_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload),
         redirect: "follow"
       });
-      if (!response.ok) {
-        debugLog("Upload refused", response.status);
-        return false;
-      }
+      // The website explains refusals in the body, so it is read whatever the status: a
+      // 400 with `drop` is final, while a 401 (key) or 429 (too many) is worth retrying.
       const result = await response.json().catch(() => null);
-      if (result?.ok) return "sent";
+      if (response.ok && result?.ok) return "sent";
       // A session the receiver will never accept is dropped, not retried: left at the head
       // of the queue it would hold back every session after it, forever.
       if (result?.drop) {

@@ -81,7 +81,7 @@ function initializeModule() {
   registerJournalControls(store, attribution);
 
   // Before IdleEnd, so a session that auto-ends at login is uploaded like any other.
-  new StatsUploader(store, attribution).registerHooks();
+  new StatsUploader(store).registerHooks();
 
   // Last: it may end a session left running since a previous login, and the controls above
   // should already be listening for that.

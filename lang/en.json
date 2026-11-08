@@ -4,11 +4,11 @@
   "CGSS.Settings.AutoEnd.Name": "Auto-End After Hours Without a Roll",
   "CGSS.Settings.AutoEnd.Hint": "End the recording once nobody has made a d20 roll for this many hours, in case you forget to press End Session. The end time is set to the last thing recorded, so the idle hours don't count towards the session's length. Set to 0 to turn it off.",
   "CGSS.Settings.ShareStats.Name": "Share Stats with the Champions Guild",
-  "CGSS.Settings.ShareStats.Hint": "When a session ends, send its stats to the Champions Guild for balance research. Turn this off to stop sharing; anything not yet sent is dropped.",
+  "CGSS.Settings.ShareStats.Hint": "When a session ends, send its stats to the Champions Guild website for balance research and quest records. Turn this off to stop sharing; anything not yet sent is dropped.",
 
   "CGSS.Share.Title": "Session Stats Sharing",
-  "CGSS.Share.Body": "Session stats are shared with the Champions Guild for balance research.",
-  "CGSS.Share.Detail": "When a session ends, its report is sent: the session and world names, your name, player and character names, classes, levels, monster CRs, and the roll and combat numbers. Nothing else about your world is sent. You can turn this off at any time in the module settings.",
+  "CGSS.Share.Body": "Session stats are shared with the Champions Guild website, where only guild admins can see them. They're used to check how well the Adventure Builder balances fights, and to help fill in quest records.",
+  "CGSS.Share.Detail": "When a session ends, it is sent: the session and world names, your Foundry name, player and character names, classes, levels, monster stats (CR, AC, HP), every recorded roll and HP change, stat edits made during fights, and consumables used. Nothing else about your world is sent. You can turn this off at any time in the module settings.",
   "CGSS.Share.Ok": "OK",
   "CGSS.Share.Failed": "Session Stats couldn't share the last session's stats. It will try again automatically.",
 

@@ -33,20 +33,32 @@ export const SETTING = {
   START_PROMPT_PLAYERS: "startPromptPlayers",
   AUTO_END_HOURS: "autoEndHours",
   SHARE_STATS: "shareStats",
-  SHARE_NOTICE_SHOWN: "shareNoticeShown",
+  // Renamed in 0.7 so every GM sees the notice once more: more is shared than before.
+  SHARE_NOTICE_SHOWN: "shareNoticeShownV2",
   UPLOAD_QUEUE: "uploadQueue",
   DEBUG: "debug"
 };
 
 /**
- * Where finished sessions are sent for the Champions Guild's balance research: a Google
- * Apps Script web app (see receiver/README.md). Empty means sharing is not set up yet, and
- * nothing is sent or announced.
+ * Where finished sessions are sent for the Champions Guild's balance research: the Champions
+ * Guild website, which keeps each session and builds its tables (admins only). Empty means
+ * sharing is off, and nothing is sent or announced.
  */
-export const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbw9Rh32aIuYfaB5lJ8vGSGz_Q1eM2MsbIcld2I2UyEfwoS9s4Ovs0Jly2QaKZj7Bu7hhw/exec";
+export const UPLOAD_URL = "https://championsguildrpg.com/api/session-stats/sessions";
 
-/** Bumped whenever the uploaded payload changes shape, so the receiver can tell versions apart. */
-export const UPLOAD_SCHEMA = 1;
+/**
+ * The website's upload key. It is built in so GMs have nothing to set up, which also means it
+ * is not secret: the website limits uploads per address, checks each one looks like a real
+ * session, and only counts sessions it can match to a guild quest. If it is ever replaced on
+ * the website (/admin/session-stats), this has to change in a module update.
+ */
+export const UPLOAD_KEY = "cgss_e8a077ee870590becd368204db2ea6c0d05ecab0c5a72be3";
+
+/**
+ * Bumped whenever the uploaded payload changes shape. 1 = report tables for Google Sheets
+ * (0.6); 2 = the raw session for the website (0.7).
+ */
+export const UPLOAD_SCHEMA = 2;
 
 export const SOCKET_ACTION = {
   RECORD_EVENT: "recordEvent",

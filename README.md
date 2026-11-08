@@ -29,13 +29,13 @@ Two GM-only controls sit below the chat message box:
 
 **End Session** lives in the report window header rather than beside the chat box, and asks for confirmation: a stray click there would otherwise stop recording mid-game with nothing to undo it. If you forget to press it, the session ends by itself after 3 hours with no rolls (see Settings).
 
-A session is a manually bounded recording window. Starting one asks only for a name — there is no roster to pick. Every character is tracked, and each appears in the report once they have actually rolled or been involved in something, so a late arrival needs no setup and nobody is silently excluded.
+A session is a manually bounded recording window. Starting one asks only for a name and whether it is a **Champions Guild game** (ticked by default; untick it for a game not run for the guild) — there is no roster to pick. Every character is tracked, and each appears in the report once they have actually rolled or been involved in something, so a late arrival needs no setup and nobody is silently excluded.
 
 Starting also refuses to discard unexported data from a previous session without asking first, and quietly carries in anything from the last minute, so the first roll or two never go missing if you hit Start a few seconds late. If you forget entirely, the module offers to start one for you once players are connected and rolling — see Settings.
 
 ### What gets recorded
 
-**d20 rolls** — attack rolls, saving throws (including death and concentration saves), ability/skill/tool checks, and initiative. Only the raw die face is stored, never modifiers or totals: the point is comparing how well people rolled, not how strong their builds are. On advantage or disadvantage every die is kept, flagged with which one counted, so the report can separate true luck from effective luck.
+**d20 rolls** — attack rolls, saving throws (including death and concentration saves), ability/skill/tool checks, and initiative. The report compares raw die faces only: the point is how well people rolled, not how strong their builds are. On advantage or disadvantage every die is kept, flagged with which one counted, so the report can separate true luck from effective luck. Each roll also stores its bonus and, when known, the DC or the target's AC, which the Champions Guild website uses to work out how likely each roll was to succeed.
 
 **HP changes** — damage dealt and taken, biggest single blow each way, healing given and received, temp HP granted, times downed, kills, attacks received, and attacks avoided. Effective amounts only: overkill and overhealing are discarded. Damage absorbed by temp HP counts as damage taken. Rest and hit-dice healing are excluded entirely. Summons and familiars roll up to their summoner, and wild shape merges back into the base character.
 
@@ -46,6 +46,8 @@ Starting also refuses to discard unexported data from a previous session without
 **Who took part** — each character's class and subclass, total level, armor class, and the player who owns them; each NPC's CR and XP. This is captured the first time they appear in a session, so a character who levels up at the end of the night is recorded at the level they played.
 
 **Fights** — every combat is a fight of its own. Each event is credited to the fight it happened in, and each fight records its rounds, everyone in it, and the enemy side (hostile combatants). A combatant who never acts still counts, as a zero, so per-fight averages aren't inflated. A combat only counts once it is started or its turn moves during the session, so one left running from an earlier game never claims new events, and one whose turn hasn't moved for 30 minutes stops collecting them.
+
+**For fight balance** (used by the Champions Guild website, not shown in the report) — each combatant's HP, max and temp HP when they join a fight and after every change; combatants removed from a running fight (a dead monster's token cleared off the map is recorded with its HP and the round before it disappears); PC deaths (a third failed death save or the Dead condition); stat-block edits made during a fight (max HP, AC, CR, abilities, bonuses, or an item's attack, damage or save); a lasting mark on HP changes made by hand rather than by Midi; consumables used, and consumable counts that drop with no use; and which monsters have legendary actions or a lair. All of it is automatic.
 
 ### The report window
 
@@ -72,9 +74,9 @@ The queues update live. The stat tables refresh only when you open the window or
 
 ## Sharing with the Champions Guild
 
-When a session ends, Session Stats sends the same tables to the Champions Guild for balance research, where each session becomes its own spreadsheet. There is nothing to set up and no account to create. The first time the module runs in a world it tells the GM, who can turn sharing off in the module settings.
+When a session ends, Session Stats sends it to the Champions Guild website, where only guild admins can see it. The website rebuilds the report's tables from it, checks how well its Adventure Builder balanced each fight, links the session to the guild quest it belongs to, and suggests fill-in players and consumables used when the DM closes out the quest. There is nothing to set up and no account to create. The first time the module runs in a world it tells the GM, who can turn sharing off in the module settings.
 
-What is sent: the session and world names, the GM's name, player and character names, classes, levels, monster CRs, and the roll and combat numbers in the report. Nothing else about the world is sent. If a session can't be sent (no internet, or the GM was logged out when it auto-ended), it is kept and sent at the next login, or within half an hour while the GM stays connected. A session that has been sent counts as exported, so starting the next one doesn't warn about it.
+What is sent: the session and world names, the Foundry server's address, the GM's Foundry name, player and character names, classes, levels, monster stats (CR, AC, HP), every recorded roll and HP change, stat edits made during fights, and consumables used. Nothing else about the world is sent. The upload key is built into the module (`UPLOAD_KEY` in `scripts/constants.mjs`); the website limits uploads per address and checks each one, so it doesn't need to be secret. If a session can't be sent (no internet, or the GM was logged out when it auto-ended), it is kept and sent at the next login, or within half an hour while the GM stays connected. A session that has been sent counts as exported, so starting the next one doesn't warn about it.
 
 ## Settings
 
