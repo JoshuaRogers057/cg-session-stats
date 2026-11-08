@@ -8,8 +8,17 @@
 
   "CGSS.Share.Title": "Session Stats Sharing",
   "CGSS.Share.Body": "Session stats are shared with the Champions Guild website, where only guild admins can see them. They're used to check how well the Adventure Builder balances fights, and to help fill in quest records.",
-  "CGSS.Share.Detail": "When a session ends, it is sent: the session and world names, your Foundry name, player and character names, classes, levels, monster stats (CR, AC, HP), every recorded roll and HP change, stat edits made during fights, and consumables used. Nothing else about your world is sent. You can turn this off at any time in the module settings.",
+  "CGSS.Share.Detail": "When a session ends, it is sent: the session and world names, your Foundry name, player and character names, classes, levels, monster stats (CR, AC, HP), every recorded roll and HP change, stat edits made during fights, consumables used, and your answer when asked how a fight ended. Nothing else about your world is sent. You can turn this off at any time in the module settings.",
   "CGSS.Share.Ok": "OK",
+  "CGSS.Outcome.Title": "How Did That Fight End?",
+  "CGSS.Outcome.Body": "The tracker couldn't tell how that fight ended. One click helps the Champions Guild balance future fights.",
+  "CGSS.Outcome.Which": "The fight with {names}.",
+  "CGSS.Outcome.Skip": "Close this if you'd rather not say.",
+  "CGSS.Outcome.Won": "The party won",
+  "CGSS.Outcome.Fled": "The enemies fled or surrendered",
+  "CGSS.Outcome.Retreat": "The party retreated",
+  "CGSS.Outcome.Talk": "They talked it out",
+  "CGSS.Outcome.Other": "Something else",
   "CGSS.Share.Failed": "Session Stats couldn't share the last session's stats. It will try again automatically.",
 
   "CGSS.AutoEnd.Notice": "Session \"{name}\" was ended automatically after {hours} hours with no rolls. It's ready to export from the report window.",

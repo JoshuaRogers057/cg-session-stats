@@ -164,3 +164,14 @@
   opacity: 0.7;
   margin: 8px 0 0;
 }
+
+/* "How did that fight end?" - one answer per row, so five choices fit a narrow dialog. */
+.cgss-outcome .form-footer {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cgss-outcome .form-footer button {
+  width: 100%;
+  justify-content: flex-start;
+}

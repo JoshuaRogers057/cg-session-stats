@@ -32,7 +32,8 @@ function freshSessionData(name, { guild = true } = {}) {
       // One entry per combat that ran this session, in order. Events carry `f`, an index
       // into this list. { id, s, e, last, r, c, hp } - combat id; start, end and last turn
       // change in session seconds; rounds; combatants as uuid -> 1 hostile / 0 otherwise;
-      // hp as uuid -> [hp, max, temp, round] when each combatant first joined.
+      // hp as uuid -> [hp, max, temp, round] when each combatant first joined; o = the GM's
+      // answer to how it ended, when the tracker couldn't tell (see outcome-prompt.mjs).
       fights: [],
       npcSeen: {}, // uuid -> name, for actors that appeared in a combat this session
       // Who ran it and where, so the website can match the session to its quest.
@@ -559,6 +560,18 @@ export class SessionStore {
     if (!fight) return;
     fight.e = this.#elapsedNow();
     fight.r = Math.max(fight.r, combat.round ?? 0);
+    this.#flush();
+  }
+
+  /**
+   * The GM's answer to "how did that fight end?" (outcome-prompt.mjs), stored on the fight as
+   * `o`. Only asked when the tracker couldn't tell; the website prefers it over its own guess.
+   */
+  setFightOutcome(index, answer) {
+    if (!game.user.isGM || !this.#data) return;
+    const fight = this.#data.meta.fights?.[index];
+    if (!fight) return;
+    fight.o = String(answer);
     this.#flush();
   }
 
