@@ -39,15 +39,15 @@ const COMBAT_COLUMNS = [
 ];
 
 // `display` names the field shown in place of the sort key (CR sorts by number, shows "1/4");
-// `npcOnly` blanks the cell on PC rows.
+// `npcOnly` blanks the cell on PC rows; `gmOnly` drops the column for players (it only describes NPCs).
 const PARTY_COLUMNS = [
   { key: "name", label: "Character" },
   { key: "player", label: "Player" },
   { key: "level", label: "Level" },
   { key: "classes", label: "Class" },
   { key: "subclass", label: "Subclass" },
-  { key: "cr", label: "CR", display: "crLabel" },
-  { key: "count", label: "Count", npcOnly: true },
+  { key: "cr", label: "CR", display: "crLabel", gmOnly: true },
+  { key: "count", label: "Count", npcOnly: true, gmOnly: true },
   { key: "ac", label: "AC", display: "acLabel" }
 ];
 
@@ -123,6 +123,14 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
   #hookIds = [];
   #tickInterval = null;
 
+  /**
+   * NPC rows are the GM's alone: players would otherwise see monster names, CR, AC and rolls
+   * the GM keeps hidden. Players get party-only tables and no NPC switch.
+   */
+  get #npcsShown() {
+    return game.user.isGM && this.#showNPCs;
+  }
+
   constructor(store, attribution, options = {}) {
     super(options);
     this.#store = store;
@@ -134,12 +142,13 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const data = this.#store.data;
     const tab = TAB_DEFS.find((t) => t.id === this.#activeTab) ?? TAB_DEFS[0];
     const rawRows = this.#tables[tab.id] ?? [];
+    const columns = tab.columns.filter((c) => !c.gmOnly || game.user.isGM);
 
     const toDisplayRow = (r) => ({
       isPC: r.isPC,
       dangerNat1: (r.nat1 ?? 0) >= 3,
       cells: Object.fromEntries(
-        tab.columns.map((c) => [c.key, c.npcOnly && r.isPC ? "" : formatCell(c.key, r[c.display ?? c.key])])
+        columns.map((c) => [c.key, c.npcOnly && r.isPC ? "" : formatCell(c.key, r[c.display ?? c.key])])
       )
     });
 
@@ -161,7 +170,7 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const partyTotals = buildPartyTotals(rawRows);
       if (partyTotals) {
         totals = {
-          cells: Object.fromEntries(tab.columns.map((c) => [c.key, formatCell(c.key, partyTotals[c.key])]))
+          cells: Object.fromEntries(columns.map((c) => [c.key, formatCell(c.key, partyTotals[c.key])]))
         };
       }
     }
@@ -189,11 +198,12 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       rollQueue: game.user.isGM ? this.#rollQueueContext() : [],
       activeTab: tab.id,
       tabs: TAB_DEFS.map((t) => ({ id: t.id, label: t.label, active: t.id === tab.id })),
-      showNPCs: this.#showNPCs,
+      showNPCs: this.#npcsShown,
+      canShowNPCs: game.user.isGM,
       excludeSpecialSaves: this.#excludeSpecialSaves,
       showSpecialSavesToggle: !!tab.hasSpecialSavesToggle,
       fightOptions: tab.kind === "combat" ? this.#fightOptions() : [],
-      columns: tab.columns,
+      columns,
       rows,
       totals
     };
@@ -211,13 +221,13 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       let rows;
       if (tab.kind === "roll") {
         const excludeTags = tab.hasSpecialSavesToggle && this.#excludeSpecialSaves ? [ROLL_TAG.DEATH_SAVE, ROLL_TAG.CONCENTRATION] : [];
-        rows = buildRollTable(data, tab.category, { showNPCs: this.#showNPCs, excludeTags });
+        rows = buildRollTable(data, tab.category, { showNPCs: this.#npcsShown, excludeTags });
       } else if (tab.kind === "party") {
-        rows = buildRoster(data, { showNPCs: this.#showNPCs });
+        rows = buildRoster(data, { showNPCs: this.#npcsShown });
       } else if (tab.kind === "initiative") {
-        rows = buildInitiativeTable(data, { showNPCs: this.#showNPCs });
+        rows = buildInitiativeTable(data, { showNPCs: this.#npcsShown });
       } else {
-        rows = buildCombatTable(data, { showNPCs: this.#showNPCs, fight: this.#combatFight });
+        rows = buildCombatTable(data, { showNPCs: this.#npcsShown, fight: this.#combatFight });
       }
 
       const sort = this.#sortState[tab.id];
