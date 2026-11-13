@@ -132,7 +132,9 @@ export function buildCombatTable(data, { showNPCs = false, fight = null } = {}) 
       const g = touch(getCombatGroup(groups, e.g, targetIdentity), e);
       g.dmgTaken += e.dmg ?? 0;
       g.healRecv += e.heal ?? 0;
-      if (e.dn) g.downed += 1;
+      // Not when the body that dropped was another one credited to this character (`alt`):
+      // a familiar killed or a wild shape broken is not the character going down.
+      if (e.dn && !e.alt) g.downed += 1;
       // One event is one blow against one creature, so an AoE hitting three targets is
       // three separate blows rather than a single large one.
       g.maxTaken = Math.max(g.maxTaken, e.dmg ?? 0);
