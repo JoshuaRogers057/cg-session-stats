@@ -274,6 +274,34 @@ export class SessionStore {
   }
 
   /**
+   * GM-only. Takes back the last `count` damage events recorded on this actor, because the
+   * damage was undone (Midi's reverse button, or its workflow undo, put the HP back). An undo
+   * isn't healing: the hit simply never counted. Stops at the first HP event on the actor that
+   * isn't pure damage, so it can never eat a heal or an earlier, unrelated change.
+   * Returns how many were removed.
+   */
+  undoRecentDamage(targetUuid, count) {
+    if (!game.user.isGM || !this.isRecording || !(count > 0)) return 0;
+    const target = this.#resolveActor(targetUuid);
+    if (!target) return 0;
+    const events = this.#data.events;
+    const doomed = [];
+    for (let i = events.length - 1; i >= 0 && doomed.length < count; i--) {
+      const e = events[i];
+      if (e.e !== EVENT_TYPE.HP || e.g !== target.uuid) continue;
+      if (!(e.dmg > 0) || e.heal > 0 || e.thp > 0) break;
+      doomed.push(i);
+    }
+    if (!doomed.length) return 0;
+    for (const i of doomed) events.splice(i, 1); // descending, so earlier indices stay put
+    debugLog("Undid damage", { target: target.uuid, removed: doomed.length });
+    // The attribution queue is read straight off the events by index, so it must redraw.
+    Hooks.callAll(HOOK.QUEUE_CHANGED);
+    this.#flush();
+    return doomed.length;
+  }
+
+  /**
    * The fight this actor is in right now, by index, or null. Only fights still running
    * count, and only ones that have the actor on their roster.
    */

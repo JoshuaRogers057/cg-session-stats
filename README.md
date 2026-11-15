@@ -41,6 +41,8 @@ Starting also refuses to discard unexported data from a previous session without
 
 "Downed" counts how often a character was reduced to 0 HP; their familiar or wild shape dropping doesn't count; the same event credits a kill to whoever landed it. Friendly fire is excluded from kills, damage dealt, and biggest hit dealt, but still counts as damage taken by the recipient. "Attacks received" counts attacks that targeted a character, hit or miss; "attacks avoided" counts the ones that missed.
 
+**Undoing damage** — when damage is undone (the reverse button on Midi's damage card, or Midi's undo), the hit is taken back as if it never happened: no damage dealt or taken, no kill, and no healing credited to anyone. It is recognised by the target's HP and temp HP going straight back to exactly what they were before one of their last few hits (within 30 minutes, with nothing else in between). Real healing that happens to restore the exact amount still counts when it comes from someone other than the attacker; an unattributed HP-bar edit that puts back exactly the last hit is treated as an undo.
+
 "Max Dealt" and "Max Taken" record the biggest single blow each way. A blow is damage to one creature from one action, so an area spell hitting three targets counts as three separate blows rather than one large one.
 
 **Who took part** — each character's class and subclass, total level, armor class, and the player who owns them; each NPC's CR and XP. This is captured the first time they appear in a session, so a character who levels up at the end of the night is recorded at the level they played.

@@ -2,6 +2,11 @@ import { EVENT_TYPE, HOOK, debugLog } from "./constants.mjs";
 import { resolveAttributedActor } from "./actor-resolve.mjs";
 import { relayMarkHitDie } from "./socket.mjs";
 
+// An undo (HP put back exactly as it was before a hit) only counts within this long of the hit,
+// and only for the last few hits in a row on the same actor.
+const UNDO_WINDOW_MS = 30 * 60 * 1000;
+const UNDO_MAX_HITS = 10;
+
 /**
  * HP is captured from the actual `updateActor` that changes it, GM-side only.
  *
@@ -22,6 +27,9 @@ export class HPCapture {
   #store;
   #lastKnownHP = new Map(); // actorUuid -> { hp, temp }, GM-side only, reset each session
   #ignoreNextUpdate = new Set(); // actorUuid, GM-side only (hit-die suppression)
+  // actorUuid -> recent hits in a row, oldest first: { beforeHP, beforeTemp, sourceUuid, at }.
+  // Lets an undo (HP put back exactly as it was) be told apart from healing. GM-side only.
+  #recentHits = new Map();
 
   constructor(store) {
     this.#store = store;
@@ -44,6 +52,7 @@ export class HPCapture {
   #resetGmState() {
     this.#lastKnownHP.clear();
     this.#ignoreNextUpdate.clear();
+    this.#recentHits.clear();
   }
 
   #onRollHitDie(actor) {
@@ -77,9 +86,9 @@ export class HPCapture {
     // (e.g. a long rest healing 50 would make the following 10 damage look like +40 heal).
     this.#lastKnownHP.set(actor.uuid, { hp: newHP, temp: newTemp });
 
-    if (options.isRest) return; // rest HP restoration excluded entirely, per brief
+    if (options.isRest) return void this.#recentHits.delete(actor.uuid); // rest HP restoration excluded entirely, per brief
     if (!prev) return; // no pre-update baseline; #seedBaselineGM normally guarantees one
-    if (this.#ignoreNextUpdate.delete(actor.uuid)) return; // hit-die heal, excluded per brief
+    if (this.#ignoreNextUpdate.delete(actor.uuid)) return void this.#recentHits.delete(actor.uuid); // hit-die heal, excluded per brief
 
     const deltaHP = newHP - prev.hp;
     const deltaTemp = newTemp - prev.temp;
@@ -96,6 +105,28 @@ export class HPCapture {
 
     const target = resolveAttributedActor(actor);
     const source = this.#resolveSource(options);
+
+    // An undo is not healing. Midi's reverse button (and its workflow undo) puts the old HP
+    // back with no flag saying so - the reverse even names the attacker as the source - so
+    // it is recognised by its shape: the very next HP change after one or more hits returns
+    // HP and temp HP exactly to what they were before one of those hits. Those hits are taken
+    // back instead (a teammate hit by mistake and undone counts for nothing either way).
+    const hits = this.#recentHits.get(actor.uuid) ?? [];
+    if (dmg === 0 && (heal > 0 || thp > 0)) {
+      const undone = this.#matchUndo(hits, newHP, newTemp, source);
+      if (undone > 0) {
+        this.#recentHits.delete(actor.uuid);
+        debugLog("Damage undone", { target: actor.name, hits: undone });
+        this.#store.undoRecentDamage(target.uuid, undone);
+        return;
+      }
+    }
+    if (dmg > 0 && heal === 0 && thp === 0) {
+      hits.push({ beforeHP: prev.hp, beforeTemp: prev.temp, sourceUuid: source?.uuid ?? null, at: Date.now() });
+      this.#recentHits.set(actor.uuid, hits.slice(-UNDO_MAX_HITS));
+    } else {
+      this.#recentHits.delete(actor.uuid); // any other change breaks the run
+    }
 
     debugLog("HP change", {
       target: actor.name,
@@ -123,6 +154,25 @@ export class HPCapture {
       // A wild shape or summon credited to its owner: these numbers are the other body's.
       otherBody: target.uuid !== actor.uuid
     });
+  }
+
+  /**
+   * How many of the most recent hits this change undoes: the newest hit whose "before" HP and
+   * temp HP the actor is now back at exactly, counting it and every hit after it. 0 when it
+   * isn't an undo. A named source must be that hit's attacker (an undo names the attacker,
+   * real healing names the healer); an unnamed one (Midi's workflow undo, an HP-bar fix)
+   * matches any hit. Hits older than UNDO_WINDOW_MS no longer count.
+   */
+  #matchUndo(hits, newHP, newTemp, source) {
+    const now = Date.now();
+    for (let i = hits.length - 1; i >= 0; i--) {
+      const h = hits[i];
+      if (now - h.at > UNDO_WINDOW_MS) break;
+      if (h.beforeHP !== newHP || h.beforeTemp !== newTemp) continue;
+      if (source && h.sourceUuid !== source.uuid) return 0;
+      return hits.length - i;
+    }
+    return 0;
   }
 
   /** The attacker or healer Midi named on the update, rolled up to summoner/base actor. */
