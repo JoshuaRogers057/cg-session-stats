@@ -1,6 +1,9 @@
 import { MODULE_ID, SETTING, HOOK, MANUAL_SOURCE, NOT_TRACKED, ROLL_VERDICT, debugLog } from "./constants.mjs";
 import { describeRoll, formatHPChange } from "./report-app.mjs";
 
+// Longer than session-store's amendment retry (2s), so a verdict that needed the retry is in.
+const ROLL_GRACE_MS = 4000;
+
 /**
  * Optional pop-ups for unresolved entries (setting "Ask Me About Unresolved Changes", off by
  * default, per GM). When an entry lands in either queue - a roll whose pass/fail the system
@@ -61,7 +64,18 @@ export class UnresolvedPrompt {
     for (const event of this.#unresolvedEvents()) {
       if (this.#seen.has(event)) continue;
       this.#seen.add(event);
-      this.#waiting.push(event);
+      if (event.pq) {
+        // Pass/fail often follows the roll by a moment - Midi's save verdict, or a Monk's
+        // TokenBar card judging the roll against its DC - so give it a few seconds to land
+        // before asking. Rolls settled meanwhile are never asked about.
+        setTimeout(() => {
+          if (!event.pq || !this.#enabled || !this.#store.isRecording) return;
+          this.#waiting.push(event);
+          this.#showNext();
+        }, ROLL_GRACE_MS);
+      } else {
+        this.#waiting.push(event);
+      }
     }
     this.#showNext();
   }

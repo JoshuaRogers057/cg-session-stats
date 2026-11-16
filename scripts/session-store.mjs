@@ -475,18 +475,22 @@ export class SessionStore {
    * Matches on actor plus the exact dice faces, newest first, within a short window.
    * Returns true if an event was amended.
    */
-  amendRoll({ actorUuid, faces, pass, tag, dc }, windowSeconds = 20) {
+  amendRoll({ actorUuid, faces, pass, tag, dc, bonus, within }, windowSeconds = 20) {
     if (!game.user.isGM || !this.#data) return false;
 
     const now = this.#elapsedNow();
     const events = this.#data.events;
     const wanted = JSON.stringify(faces);
+    // A source that can arrive long after the roll (a GM ticking pass/fail on a Monk's
+    // TokenBar card) asks for a longer window and narrows the match with the bonus instead.
+    const limit = Number.isFinite(within) ? within : windowSeconds;
 
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i];
-      if (now - e.t > windowSeconds) break;
+      if (now - e.t > limit) break;
       if (e.e !== EVENT_TYPE.ROLL || e.a !== actorUuid) continue;
       if (JSON.stringify(e.d) !== wanted) continue;
+      if (Number.isFinite(bonus) && Number.isFinite(e.b) && e.b !== bonus) continue;
 
       if (tag !== undefined) e.x = tag;
       if (Number.isFinite(dc) && !Number.isFinite(e.dc)) e.dc = dc;

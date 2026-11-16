@@ -43,6 +43,67 @@ export class RollCapture {
     // Chat messages sync to the GM, so this is GM-only; running it on every client would
     // relay the same roll several times.
     if (game.user.isGM) Hooks.on("createChatMessage", (message) => this.#onInitiativeMessage(message));
+
+    // Monk's TokenBar roll requests: see #onTokenBarCard. GM-only for the same reason.
+    if (game.user.isGM) Hooks.on("updateChatMessage", (message, changes) => this.#onTokenBarCard(message, changes));
+  }
+
+  /**
+   * Supplies pass/fail for rolls requested through Monk's TokenBar.
+   *
+   * Monk's calls dnd5e's own roll functions (so dnd5e.rollSavingThrow etc. above record the
+   * roll) but never hands them the DC: it keeps the DC on its chat card and judges each
+   * result itself, storing the verdict on that card as flags["monks-tokenbar"]["token<id>"]
+   * .passed. Without this every requested roll would land in the GM's unresolved queue even
+   * though the card already says who passed. Reading the card also picks up the GM ticking
+   * pass/fail on it by hand, and contested rolls (won/lost).
+   *
+   * The roll is recorded on the roller's client and the card updated straight after, so the
+   * amendment can arrive first; queueAmendment's retry covers that.
+   */
+  #tokenBarApplied = new Map(); // "<message id>.<token key>" -> verdict already sent
+
+  #onTokenBarCard(message, changes) {
+    if (!changes?.flags?.["monks-tokenbar"]) return;
+    const flags = message.flags?.["monks-tokenbar"];
+    if (flags?.what !== "savingthrow" && flags?.what !== "contestedroll") return;
+
+    const dc = flags.what === "savingthrow" ? Number.parseInt(flags.dc, 10) : NaN;
+
+    for (const [key, token] of Object.entries(flags)) {
+      if (!key.startsWith("token") || !token?.roll) continue;
+      const pass = tokenBarVerdict(token.passed);
+      if (pass === null) continue;
+
+      const appliedKey = `${message.id}.${key}`;
+      if (this.#tokenBarApplied.get(appliedKey) === pass) continue;
+
+      let roll;
+      try {
+        roll = token.roll instanceof Roll ? token.roll : Roll.fromData(token.roll);
+      } catch {
+        continue;
+      }
+      const faces = extractD20Faces(roll);
+      if (!faces) continue; // a plain dice request, never recorded as a d20 roll
+
+      // Monk's stores the token's uuid (or the actor's, for an actor with no token) and
+      // rolls on that token's actor - the same actor the dnd5e hook saw.
+      const found = token.uuid ? fromUuidSync(token.uuid) : null;
+      const actor = found?.actor ?? found ?? game.actors.get(token.actorid);
+      if (!actor) continue;
+
+      this.#tokenBarApplied.set(appliedKey, pass);
+      this.#amend({
+        actorUuid: resolveAttributedActor(actor).uuid,
+        faces: faces.faces,
+        pass,
+        dc: Number.isFinite(dc) ? dc : null,
+        bonus: bonusOf(roll, faces),
+        // A GM can tick the card well after the roll; the bonus keeps the match exact.
+        within: 3600
+      });
+    }
   }
 
   #onAttack(workflow) {
@@ -188,6 +249,17 @@ export class RollCapture {
     if (game.user.isGM) this.store.queueAmendment(amendment);
     else relayAmendRoll(amendment).catch((err) => console.error("cg-session-stats | Failed to relay amendment", err));
   }
+}
+
+/**
+ * Monk's TokenBar's verdict on one token: true/"success" passed (success = by 10 or more),
+ * false/"failed" failed, "won"/"tied"/"waiting" from contested rolls. Ties and anything
+ * still waiting stay unresolved.
+ */
+function tokenBarVerdict(passed) {
+  if (passed === true || passed === "success" || passed === "won") return true;
+  if (passed === false || passed === "failed") return false;
+  return null;
 }
 
 /** Token sets on the workflow are rebuilt from UUIDs, so compare by UUID not identity. */
