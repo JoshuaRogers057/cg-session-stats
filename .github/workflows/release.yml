@@ -1,10 +1,15 @@
-name: Release
+name: Release (Foundry v14 channel)
 
-# Publishes a release whenever a version tag is pushed, e.g. v0.1.0.
+# The v14 branch's own release workflow. A tag like v14-0.9.0 pushed from this branch publishes
+# a PRE-release, so GitHub's "latest release" (the v13 manifest link every v13 world updates
+# from) never changes. The newest v14 build is also copied onto the fixed `v14-latest` release,
+# whose module.json is the v14 manifest link:
+#   https://github.com/<repo>/releases/download/v14-latest/module.json
+# Tags made by this workflow's own token don't start workflows, so updating v14-latest can't loop.
 on:
   push:
     tags:
-      - "v*"
+      - "v14-[0-9]*"
 
 permissions:
   contents: write
@@ -17,16 +22,17 @@ jobs:
 
       - name: Derive version from tag
         id: version
-        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "value=${GITHUB_REF_NAME#v14-}" >> "$GITHUB_OUTPUT"
 
-      # Foundry compares the installed version against the one in the manifest it fetches,
-      # so the released module.json has to carry this tag's version and point `download` at
-      # this tag's zip. `manifest` stays on the /latest/ URL so update checks keep working.
-      - name: Stamp version and download URL into module.json
+      # Foundry compares the installed version against the one in the manifest it fetches, so
+      # the released module.json carries this tag's version and points `download` at this tag's
+      # zip. `manifest` stays on the v14-latest URL so v14 worlds keep updating from v14 builds.
+      - name: Stamp version, download and manifest URLs into module.json
         run: |
           jq --arg v "${{ steps.version.outputs.value }}" \
              --arg d "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/module.zip" \
-             '.version = $v | .download = $d' module.json > module.tmp
+             --arg m "https://github.com/${{ github.repository }}/releases/download/v14-latest/module.json" \
+             '.version = $v | .download = $d | .manifest = $m' module.json > module.tmp
           mv module.tmp module.json
 
       # Listing paths explicitly rather than excluding them keeps .git, .github and .claude
@@ -34,11 +40,24 @@ jobs:
       - name: Build zip
         run: zip -r module.zip module.json scripts templates styles lang README.md LICENSE
 
-      - name: Publish release
+      - name: Publish the versioned pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           gh release create "$GITHUB_REF_NAME"
           module.json module.zip
-          --title "$GITHUB_REF_NAME"
+          --title "$GITHUB_REF_NAME (Foundry v14)"
           --generate-notes
+          --prerelease
+          --latest=false
+
+      - name: Point v14-latest at this build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view v14-latest >/dev/null 2>&1; then
+            gh release create v14-latest --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "Foundry v14 channel (manifest)" \
+              --notes "Install link for Foundry v14 worlds: https://github.com/${{ github.repository }}/releases/download/v14-latest/module.json. Always holds the newest v14 build; v13 worlds keep using the latest-release link."
+          fi
+          gh release upload v14-latest module.json module.zip --clobber

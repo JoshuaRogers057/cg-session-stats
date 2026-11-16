@@ -2,13 +2,17 @@
 
 Tracks per-character combat and d20 statistics across a play session in Foundry VTT, and exports them as a single CSV.
 
+> **Foundry v14 build (branch `v14`).** For Foundry 14, dnd5e 6.x and Midi-QOL 14. Install it with this manifest link:
+> `https://github.com/JoshuaRogers057/cg-session-stats/releases/download/v14-latest/module.json`
+> v13 worlds keep using the normal link (`…/releases/latest/download/module.json`) and are not affected. v14 builds are tagged `v14-<version>` and published as pre-releases, so they never become the "latest release". Checked against Foundry 14.370, dnd5e 6.0.6 and Midi-QOL 14.6.12.
+
 ## Requirements
 
 | | |
 |---|---|
-| Foundry VTT | v13 (verified 13.351) |
-| Game system | dnd5e 5.3.x |
-| Modules | [Midi-QOL](https://gitlab.com/tposney/midi-qol) and socketlib (both required) |
+| Foundry VTT | v14 (verified 14.370) |
+| Game system | dnd5e 6.x |
+| Modules | [Midi-QOL](https://gitlab.com/tposney/midi-qol) 14 and socketlib (both required) |
 
 The module refuses to initialize on any other system and reports a clear error if Midi-QOL or socketlib is missing.
 
