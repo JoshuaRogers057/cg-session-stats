@@ -36,6 +36,7 @@ export const SETTING = {
   // Renamed in 0.7 so every GM sees the notice once more: more is shared than before.
   SHARE_NOTICE_SHOWN: "shareNoticeShownV2",
   UPLOAD_QUEUE: "uploadQueue",
+  PROMPT_UNRESOLVED: "promptUnresolved",
   DEBUG: "debug"
 };
 

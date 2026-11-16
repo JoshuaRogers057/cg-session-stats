@@ -92,14 +92,16 @@ export class AttributionQueue {
 
   /**
    * Rolls the system never reported a pass/fail for, flagged with `pq` at ingest.
-   * { index, t, actorUuid, category, tag, face }[]
+   * { index, t, actorUuid, category, tag, face, total }[] - total is the d20 plus everything added
+   * to it (`b`), or null for rolls recorded before the bonus was captured.
    */
   get rollEntries() {
     const events = this.store.data?.events ?? [];
     const out = [];
     events.forEach((e, index) => {
       if (e.e === EVENT_TYPE.ROLL && e.pq) {
-        out.push({ index, t: e.t, actorUuid: e.a, category: e.c, tag: e.x ?? null, face: e.d[e.k] });
+        const face = e.d[e.k];
+        out.push({ index, t: e.t, actorUuid: e.a, category: e.c, tag: e.x ?? null, face, total: Number.isFinite(e.b) ? face + e.b : null });
       }
     });
     return out;

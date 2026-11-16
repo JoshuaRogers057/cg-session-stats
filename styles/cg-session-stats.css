@@ -175,3 +175,18 @@
   width: 100%;
   justify-content: flex-start;
 }
+
+/* Optional pop-ups for unresolved entries (unresolved-prompt.mjs) */
+.cgss-unresolved .cgss-roll-dice {
+  font-size: 1.15em;
+}
+
+.cgss-unresolved .cgss-source-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.cgss-unresolved .cgss-source-select {
+  flex: 1;
+}

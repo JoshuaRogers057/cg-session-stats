@@ -70,7 +70,7 @@ function formatDuration(totalSeconds) {
 }
 
 /** A queue entry can carry several kinds of change at once, so describe each present one. */
-function formatHPChange({ dmg, heal, thp }) {
+export function formatHPChange({ dmg, heal, thp }) {
   const parts = [];
   if (dmg) parts.push(`${dmg} damage`);
   if (heal) parts.push(`${heal} healing`);
@@ -78,7 +78,7 @@ function formatHPChange({ dmg, heal, thp }) {
   return parts.join(", ") || "-";
 }
 
-function describeRoll(category, tag) {
+export function describeRoll(category, tag) {
   if (tag === ROLL_TAG.DEATH_SAVE) return "Death Save";
   if (tag === ROLL_TAG.CONCENTRATION) return "Concentration";
   if (category === ROLL_CATEGORY.ATTACK) return "Attack";
@@ -270,7 +270,8 @@ export class ReportApp extends HandlebarsApplicationMixin(ApplicationV2) {
       timeLabel: formatDuration(e.t),
       actorName: data.actors[e.actorUuid]?.n ?? "?",
       categoryLabel: describeRoll(e.category, e.tag),
-      face: e.face
+      face: e.face,
+      total: e.total ?? "-"
     }));
   }
 

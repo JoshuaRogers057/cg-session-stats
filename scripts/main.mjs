@@ -13,6 +13,7 @@ import { SessionPrompt } from "./session-prompt.mjs";
 import { IdleEnd } from "./idle-end.mjs";
 import { StatsUploader } from "./upload.mjs";
 import { FightOutcomePrompt } from "./outcome-prompt.mjs";
+import { UnresolvedPrompt } from "./unresolved-prompt.mjs";
 
 Hooks.once("init", () => {
   registerSettings();
@@ -77,6 +78,7 @@ function initializeModule() {
   sessionPrompt.registerHooks();
   // After store.initialize(), so a fight is closed off before the GM is asked how it ended.
   new FightOutcomePrompt(store).registerHooks();
+  new UnresolvedPrompt(store, attribution).registerHooks();
 
   // GM launches the report from the chat controls; players from the Journal tab. Each
   // registrar self-gates, so both are called unconditionally.

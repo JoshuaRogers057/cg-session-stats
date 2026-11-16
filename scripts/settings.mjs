@@ -74,6 +74,17 @@ export function registerSettings() {
     default: { items: [] }
   });
 
+  // Per GM (client scope): one GM may want pop-ups while a co-GM doesn't. Off by default, so the
+  // queues in the report window stay the only place unresolved entries show up.
+  game.settings.register(MODULE_ID, SETTING.PROMPT_UNRESOLVED, {
+    name: "CGSS.Settings.PromptUnresolved.Name",
+    hint: "CGSS.Settings.PromptUnresolved.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+
   game.settings.register(MODULE_ID, SETTING.DEBUG, {
     name: "CGSS.Settings.Debug.Name",
     hint: "CGSS.Settings.Debug.Hint",

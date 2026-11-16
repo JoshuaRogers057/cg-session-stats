@@ -37,7 +37,7 @@
       <h3>Unresolved Pass/Fail ({{rollQueue.length}})</h3>
       <table>
         <thead>
-          <tr><th>Time</th><th>Character</th><th>Roll</th><th>Die</th><th>Result</th></tr>
+          <tr><th>Time</th><th>Character</th><th>Roll</th><th>Die</th><th>Total</th><th>Result</th></tr>
         </thead>
         <tbody>
           {{#each rollQueue}}
@@ -46,6 +46,7 @@
               <td>{{this.actorName}}</td>
               <td>{{this.categoryLabel}}</td>
               <td>{{this.face}}</td>
+              <td>{{this.total}}</td>
               <td class="cgss-verdict">
                 <button type="button" data-cgss-action="resolveRoll" data-index="{{this.index}}" data-verdict="pass">Pass</button>
                 <button type="button" data-cgss-action="resolveRoll" data-index="{{this.index}}" data-verdict="fail">Fail</button>
